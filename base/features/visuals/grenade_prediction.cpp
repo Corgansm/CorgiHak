@@ -156,7 +156,7 @@ void CGrenadePrediction::PaintLocal( ) {
 	if ( wpnIndex && m_cLocalSimulation.vecPath.size( ) > 1 ) {
 		// iterate all players.
 		if ( wpnIndex == WEAPON_HEGRENADE ) {
-			for ( int i{ 1 }; i < 64; ++i ) {
+			for (auto i = 1; i < 64; ++i) {
 				const auto player = static_cast< CBasePlayer* >( Interfaces::ClientEntityList->GetClientEntity( i ) );
 				if ( !player )
 					continue;
@@ -185,7 +185,7 @@ void CGrenadePrediction::PaintLocal( ) {
 				const auto d = ( delta.Length( ) - 25.f ) / 140.f;
 				auto damage = 105.f * std::exp( -d * d );
 
-				Features::Autowall.ScaleDamage( player, damage, 1.f, HITGROUP_CHEST, 0 );
+				Features::Autowall.ScaleDamage( player, damage, 1.f, HITGROUP_CHEST, ctx.m_pWeaponData->flHeadShotMultiplier);
 
 				// clamp max damage
 				damage = std::floorf( std::min( damage, ( player->m_ArmorValue( ) > 0 ) ? 57.f : 98.f ) );

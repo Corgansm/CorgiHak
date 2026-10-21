@@ -15,6 +15,8 @@ namespace Fonts
 	inline HFont HealthESP;
 	inline HFont Menu;
 	inline HFont MenuTabs;
+	inline HFont MenuTitle;
+	inline HFont MenuBold;
 	inline HFont Logs;
 	inline HFont GrenadeWarning;
 }

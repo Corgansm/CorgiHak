@@ -21,32 +21,46 @@ void BulletImpact( IGameEvent* pEvent ) {
 		return;
 
 	Vector pos{ pEvent->GetFloat( _( "x" ) ), pEvent->GetFloat( _( "y" ) ), pEvent->GetFloat( _( "z" ) ) };
-	auto ent{ static_cast<CBasePlayer*>( Interfaces::ClientEntityList->GetClientEntity( Interfaces::Engine->GetPlayerForUserID( pEvent->GetInt( _( "userid" ) ) ) ) ) };
 
-	if ( ent != ctx.m_pLocal ) {
-		if ( ent->IsTeammate( ) )
+	if (auto ent{ static_cast<CBasePlayer*>(Interfaces::ClientEntityList->GetClientEntity(Interfaces::Engine->GetPlayerForUserID(pEvent->GetInt(_("userid"))))) }; ent)
+	{
+		if (ent != ctx.m_pLocal)
+		{
+			if (ent->IsTeammate())
+				return;
+
+			const auto& col = Config::Get<Color>(Vars.VisServerBulletImpactsCol);
+			if (Config::Get<bool>(Vars.VisServerBulletImpacts))
+			{
+				Interfaces::DebugOverlay->AddBoxOverlay(pos, Vector(-2.0f, -2.0f, -2.0f), Vector(2.0f, 2.0f, 2.0f), QAngle(0.f, -0.f, 0.f),
+					col.Get<COLOR_R>(), col.Get<COLOR_G>(), col.Get<COLOR_B>(), col.Get<COLOR_A>(), 4.0f);
+			}
+
+			if (Config::Get<bool>(Vars.VisOtherBulletTracers))
+				Features::Visuals.BulletTracers.AddTracer(ent->GetEyePosition(ent->m_angEyeAngles().y, ent->m_angEyeAngles().x), pos, ent);
+
 			return;
-
-		const auto& col = Config::Get<Color>( Vars.VisServerBulletImpactsCol );
-		if ( Config::Get<bool>( Vars.VisServerBulletImpacts ) ) {
-			Interfaces::DebugOverlay->AddBoxOverlay( pos, Vector( -2.0f, -2.0f, -2.0f ), Vector( 2.0f, 2.0f, 2.0f ), QAngle( 0.f, -0.f, 0.f ),
-				col.Get<COLOR_R>( ), col.Get<COLOR_G>( ), col.Get<COLOR_B>( ), col.Get<COLOR_A>( ), 4.0f );
 		}
 
-		if ( Config::Get<bool>( Vars.VisOtherBulletTracers ) )
-			Features::Visuals.BulletTracers.AddTracer( ent->GetEyePosition( ent->m_angEyeAngles( ).y , ent->m_angEyeAngles( ).x ), pos, ent );
-			
-		return;
-	}
+		if (const auto shot = Features::Shots.LastUnprocessed())
+		{
+			// Events have no command id. If multiple fired bullets still lack an
+			// impact in this server tick, do not learn from an ambiguous association.
+			int awaiting{ };
+			for ( const auto& pending : Features::Shots.m_vecShots )
+				if ( pending.m_iServerProcessTick == Interfaces::ClientState->iServerTick && !pending.m_bHasImpact ) ++awaiting;
+			if ( awaiting > 1 )
+				for ( auto& pending : Features::Shots.m_vecShots )
+					if ( pending.m_iServerProcessTick == Interfaces::ClientState->iServerTick ) pending.m_bResolverUnreliable = true;
+			shot->m_vecServerEnd = pos;
+			shot->m_bHasImpact = true;
 
-	if ( const auto shot = Features::Shots.LastUnprocessed( ) ) {
-		shot->m_vecServerEnd = pos;
-
-		if ( Config::Get<bool>( Vars.VisLocalBulletTracers ) )
-			Features::Visuals.BulletTracers.AddTracer( shot->m_vecStart, pos, ent );
+			if (Config::Get<bool>(Vars.VisLocalBulletTracers))
+				Features::Visuals.BulletTracers.AddTracer(shot->m_vecStart, pos, ent);
+		}
+		else if (Config::Get<bool>(Vars.VisLocalBulletTracers))
+			Features::Visuals.BulletTracers.AddTracer(ctx.m_vecEyePos, pos, ent);
 	}
-	else 	if ( Config::Get<bool>( Vars.VisLocalBulletTracers ) )
-		Features::Visuals.BulletTracers.AddTracer( ctx.m_vecEyePos, pos, ent );
 
 	const auto col = Config::Get<Color>( Vars.VisLocalBulletImpactsCol );
 
@@ -55,7 +69,8 @@ void BulletImpact( IGameEvent* pEvent ) {
 			col.Get<COLOR_R>( ), col.Get<COLOR_G>( ), col.Get<COLOR_B>( ), col.Get<COLOR_A>( ), 4.0f );
 }
 
-void RoundStart( IGameEvent* pEvent ) {
+void RoundStart( IGameEvent* pEvent )
+{
 	if ( !pEvent || !ctx.m_pLocal )
 		return;
 
@@ -89,7 +104,7 @@ void RoundStart( IGameEvent* pEvent ) {
 			buy += "buy negev; ";
 			break;		
 		case 5:
-			buy += "buy ak-47; ";
+			buy += "buy ak47; ";
 			break;
 		}
 
@@ -114,7 +129,10 @@ void RoundStart( IGameEvent* pEvent ) {
 			buy += "buy vest; ";
 		}
 
-		if ( Config::Get<bool>( Vars.MiscBuyBotOtherKit ) )
+		// team items: a defuser only exists for CT, and CT's molotov is the incendiary
+		const bool ct{ ctx.m_pLocal->m_iTeamNum( ) == TEAM_CT };
+
+		if ( Config::Get<bool>( Vars.MiscBuyBotOtherKit ) && ct )
 			buy += "buy defuser; ";
 
 		if ( Config::Get<bool>( Vars.MiscBuyBotOtherSmoke ) )
@@ -125,7 +143,7 @@ void RoundStart( IGameEvent* pEvent ) {
 
 
 		if ( Config::Get<bool>( Vars.MiscBuyBotOtherMolotov ) )
-			buy += "buy molotov; ";
+			buy += ct ? "buy incgrenade; " : "buy molotov; ";
 
 		if ( Config::Get<bool>( Vars.MiscBuyBotOtherFlashbang ) )
 			buy += "buy flashbang; ";
@@ -133,8 +151,11 @@ void RoundStart( IGameEvent* pEvent ) {
 		if ( Config::Get<bool>( Vars.MiscBuyBotOtherTaser ) )
 			buy += "buy taser; ";
 
-		if ( !buy.empty( ) )
+		if ( !buy.empty( ) ) {
+			// console only: shows which item a "usage: buy <item>" line came from
+			Features::Logger.Log( _( "auto buy: " ) + buy, false );
 			Interfaces::Engine->ClientCmdUnrestricted( buy.c_str( ) );
+		}
 	}
 
 }
@@ -160,12 +181,51 @@ void WeaponFire( IGameEvent* pEvent ) {
 		return;
 
 	shot->m_iServerProcessTick = Interfaces::ClientState->iServerTick;
+	shot->m_strWeaponName = pEvent->GetString( _( "weapon" ) );
 }
 
 void PlayerDeath( IGameEvent* pEvent ) {
 	const auto user{ pEvent->GetInt( _( "userid" ) ) };
 	ctx.m_iLastID = Interfaces::Engine->GetPlayerForUserID( user );
+
+	if ( !ctx.m_pLocal )
+		return;
+
+	// our kill: kill effect + kill sound
+	const auto attackerIndex{ Interfaces::Engine->GetPlayerForUserID( pEvent->GetInt( _( "attacker" ) ) ) };
+	if ( attackerIndex != Interfaces::Engine->GetLocalPlayer( ) || ctx.m_iLastID == attackerIndex )
+		return;
+
+	const auto victim{ static_cast< CBasePlayer* >( Interfaces::ClientEntityList->GetClientEntity( ctx.m_iLastID ) ) };
+	Features::Visuals.KillEffects.Add( victim, pEvent->GetBool( _( "headshot" ) ) );
 }
+namespace {
+	// weapon_fire says "weapon_ssg08", player_hurt says "ssg08": compare without the prefix
+	std::string BareWeaponName( std::string name ) {
+		constexpr const char* prefix{ "weapon_" };
+		if ( name.rfind( prefix, 0 ) == 0 )
+			name.erase( 0, std::char_traits< char >::length( prefix ) );
+		return name;
+	}
+
+	// damage that never came from one of our bullets ( fire, grenades )
+	bool IsNonBulletDamage( const std::string& weapon ) {
+		return weapon == "inferno" || weapon == "hegrenade" || weapon == "molotov" || weapon == "incgrenade"
+			|| weapon == "decoy" || weapon == "flashbang" || weapon == "smokegrenade" || weapon == "world";
+	}
+
+	// our shot and this damage event are the same bullet
+	bool SameWeapon( const std::string& fired, const std::string& hurt ) {
+		const auto a{ BareWeaponName( fired ) };
+		const auto b{ BareWeaponName( hurt ) };
+		if ( a == b )
+			return true;
+
+		// aliases ( revolver fires as deagle, knives / skins ): any bullet damage in the same tick from us counts
+		return !IsNonBulletDamage( b );
+	}
+}
+
 void PlayerHurt( IGameEvent* pEvent ) {
 	static auto GetHitboxByHitGroup = [ ]( int hitgroup ) -> int
 	{
@@ -182,9 +242,9 @@ void PlayerHurt( IGameEvent* pEvent ) {
 		case HITGROUP_RIGHTARM:
 			return HITBOX_RIGHT_HAND;
 		case HITGROUP_LEFTLEG:
-			return HITBOX_RIGHT_CALF;
-		case HITGROUP_RIGHTLEG:
 			return HITBOX_LEFT_CALF;
+		case HITGROUP_RIGHTLEG:
+			return HITBOX_RIGHT_CALF;
 		default:
 			return HITBOX_PELVIS;
 		}
@@ -208,21 +268,16 @@ void PlayerHurt( IGameEvent* pEvent ) {
 	if ( !victim )
 		return;
 
-	switch ( Config::Get<int>( Vars.MiscHitSound ) )
-	{
-	case 1:
-		Interfaces::Surface->PlaySoundSurface( _( "buttons/arena_switch_press_02.wav" ) );
-		break;
-	case 2:
-		Interfaces::Surface->PlaySoundSurface( ( Config::Get<std::string>( Vars.MiscCustomHitSound ) + _(".wav" ) ).c_str( ) );
-		break;
-	default:
-		break;
-	}
+	const bool lethal{ pEvent->GetInt( _( "health" ) ) <= 0 };
+
+	// a kill plays the kill sound instead ( when one is set )
+	if ( !( lethal && Config::Get<int>( Vars.MiscKillSound ) ) )
+		SoundPack::Play( Config::Get<int>( Vars.MiscHitSound ), Config::Get<std::string>( Vars.MiscCustomHitSound ) );
 
 	const auto shot = Features::Shots.LastUnprocessed( );
 
-	if ( !shot
+	if ( !shot || !shot->m_bHasImpact || shot->m_bHitPlayer
+		|| !SameWeapon( shot->m_strWeaponName, pEvent->GetString( _( "weapon" ) ) )
 		|| ( shot->m_pPlayer != victim ) ) {
 		if ( victim ) {
 			const auto hdr = Interfaces::ModelInfo->GetStudioModel( victim->GetModel( ) );
@@ -242,12 +297,12 @@ void PlayerHurt( IGameEvent* pEvent ) {
 
 			const auto point = ( min + max ) * 0.5f;
 
-			Features::Visuals.AddHit( { point, damage, Interfaces::Globals->flRealTime } );
+			Features::Visuals.AddHit( { point, damage, Interfaces::Globals->flRealTime, hitgroup, lethal } );
 		}
 		return;
 	}
 
-	Features::Visuals.AddHit( { shot->m_vecPredEnd, damage, Interfaces::Globals->flRealTime } );
+	Features::Visuals.AddHit( { shot->m_vecPredEnd, damage, Interfaces::Globals->flRealTime, hitgroup, lethal } );
 
 	shot->m_iServerHitgroup = hitgroup;
 	shot->m_iServerDamage = damage;

@@ -4,8 +4,8 @@
 #include "../features/rage/antiaim.h"
 
 void Inputsys::update( ) {
-	if ( Interfaces::Engine->IsActiveApp( )
-		&& ( !Interfaces::Engine->IsConsoleVisible( ) && Interfaces::Engine->IsConsoleVisible( ) ) || Menu::m_bOpened ) {
+	// was "!console && console || menu": always false unless the menu was open
+	if ( Interfaces::Engine->IsActiveApp( ) && ( !Interfaces::Engine->IsConsoleVisible( ) || Menu::m_bOpened ) ) {
 		for ( auto& i : KeysToCheck ) {
 			prev_state[ i ] = state[ i ];
 			state[ i ] = GetAsyncKeyState( i );

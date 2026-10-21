@@ -5,20 +5,19 @@ void CMenuItem::TextInputFocus( ) {
 	auto& maxGroups{ *reinterpret_cast< int* > ( m_pArgs ) };
 	auto& value{ *reinterpret_cast< std::string* > ( m_pValue ) };
 
-	const auto size{ Vector2D( ( Menu::m_vecSize.x - BAR_SIZE - MARGIN * ( maxGroups + 1 ) ) / maxGroups - PADDING * 4, ITEM_HEIGHT * 2.f ) };
-	const auto hovered{ Inputsys::hovered( Menu::m_vecDrawPos, size ) };
+	const auto size{ Vector2D( Menu::ControlWidth( maxGroups ), ITEM_HEIGHT * 2.f ) };
+	const auto hovered{ Inputsys::hovered( Menu::m_pFocusItem.m_vecDrawPos, size ) };
 
-	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos - Vector2D( 1, 1 ), size + 2, 4, 4, OUTLINE_DARK );
-	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos, size, 4, 4, OUTLINE_LIGHT );
-	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos + 1, size - Vector2D( 2, 2 ), 4, 4, OUTLINE_DARK );
+	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos - Vector2D( 1, 1 ), size + 2, 4, 4, ACCENT );
+	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos, size, 4, 4, MENU_CONTROL_HOVER );
 
-	Render::Text( Fonts::Menu, Menu::m_pFocusItem.m_vecDrawPos + Vector2D{ PADDING, 4 }, Color( 1.f, 1.f, 1.f ), FONT_LEFT, value.c_str( ) );
+	Render::Text( Fonts::Menu, Menu::m_pFocusItem.m_vecDrawPos + Vector2D{ PADDING, 5 }, MENU_TEXT, FONT_LEFT, value.c_str( ) );
 
 	const auto textSize{ Render::GetTextSize( value, Fonts::Menu ) };
 
 	const auto second{ static_cast< int >( Interfaces::Globals->flRealTime ) };
 	this->m_cColor = Color( 1.f, 1.f, 1.f, second & 1 ? Interfaces::Globals->flRealTime - second :  1.f - ( Interfaces::Globals->flRealTime - second ) );
-	Render::Line( Menu::m_pFocusItem.m_vecDrawPos + Vector2D{ PADDING + textSize.x, 4 }, Menu::m_pFocusItem.m_vecDrawPos + Vector2D{ PADDING + textSize.x, size.y - 4 }, this->m_cColor );
+	Render::Line( Menu::m_pFocusItem.m_vecDrawPos + Vector2D{ PADDING + textSize.x + 1.f, 5.f }, Menu::m_pFocusItem.m_vecDrawPos + Vector2D{ PADDING + textSize.x + 1.f, size.y - 5.f }, ACCENT.Set<COLOR_A>( this->m_cColor.Get<COLOR_A>( ) ) );
 
 
 	if ( Inputsys::pressed( VK_ESCAPE ) || Inputsys::pressed( VK_RETURN ) ) {
@@ -59,17 +58,19 @@ void CMenuItem::TextInput( ) {
 	auto& maxGroups{ *reinterpret_cast< int* > ( m_pArgs ) };
 	auto& value{ *reinterpret_cast< std::string* > ( m_pValue ) };
 
-	const auto size{ Vector2D( ( Menu::m_vecSize.x - BAR_SIZE - MARGIN * ( maxGroups + 1 ) ) / maxGroups - PADDING * 4, ITEM_HEIGHT * 2.f ) };
+	const auto size{ Vector2D( Menu::ControlWidth( maxGroups ), ITEM_HEIGHT * 2.f ) };
 	const auto hovered{ Inputsys::hovered( Menu::m_vecDrawPos, size ) };
 
 	if ( hovered && Inputsys::pressed( VK_LBUTTON ) && !Menu::m_pFocusItem.m_bFrameAfterFocus && !Menu::m_pFocusItem.m_pItem )
 		Menu::m_pFocusItem.Update( this );
 
 	Render::FilledRoundedBox( Menu::m_vecDrawPos - Vector2D( 1, 1 ), size + 2, 4, 4, OUTLINE_DARK );
-	Render::FilledRoundedBox( Menu::m_vecDrawPos, size, 4, 4, OUTLINE_LIGHT );
-	Render::FilledRoundedBox( Menu::m_vecDrawPos + 1, size - Vector2D( 2, 2 ), 4, 4, OUTLINE_DARK );
+	Render::FilledRoundedBox( Menu::m_vecDrawPos, size, 4, 4, hovered ? MENU_CONTROL_HOVER : MENU_CONTROL );
 
-	Render::Text( Fonts::Menu, Menu::m_vecDrawPos + Vector2D{ PADDING, 4 }, Color( 1.f, 1.f, 1.f ), FONT_LEFT, value.c_str( ) );
+	if ( value.empty( ) )
+		Render::Text( Fonts::Menu, Menu::m_vecDrawPos + Vector2D{ PADDING, 5 }, MENU_TEXT_DIM, FONT_LEFT, _( "click to type..." ) );
+	else
+		Render::Text( Fonts::Menu, Menu::m_vecDrawPos + Vector2D{ PADDING, 5 }, MENU_TEXT, FONT_LEFT, value.c_str( ) );
 
 	Menu::m_vecDrawPos.y += ITEM_HEIGHT * 2.f + PADDING;
 }

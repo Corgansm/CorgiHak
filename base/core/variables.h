@@ -1,8 +1,11 @@
 #pragma once
 #include "config.h"
 #include "input_manager.h"
+#include <array>
 
 #define ADD_PLAYER_VAR(type, name, def) C_ADD_VARIABLE( type, name##Local, def );C_ADD_VARIABLE( type, name##Team, def );C_ADD_VARIABLE( type, name##Enemy, def );
+// custom ( momentum ) anti-aim: one variable per player state
+#define ADD_AA_STATE_VAR(type, name, def) C_ADD_VARIABLE( type, name##Default, def );C_ADD_VARIABLE( type, name##Stand, def );C_ADD_VARIABLE( type, name##Move, def );C_ADD_VARIABLE( type, name##Slow, def );C_ADD_VARIABLE( type, name##Duck, def );C_ADD_VARIABLE( type, name##Air, def );C_ADD_VARIABLE( type, name##AirDuck, def );C_ADD_VARIABLE( type, name##Fakelag, def );C_ADD_VARIABLE( type, name##Defensive, def );
 #define ADD_RAGE_VAR(type, name, def) C_ADD_VARIABLE( type, name##Pistol, def );C_ADD_VARIABLE( type, name##HeavyPistol, def );C_ADD_VARIABLE( type, name##SMG, def );C_ADD_VARIABLE( type, name##Rifle, def );C_ADD_VARIABLE( type, name##Shotgun, def );C_ADD_VARIABLE( type, name##AWP, def );C_ADD_VARIABLE( type, name##Scout, def );C_ADD_VARIABLE( type, name##Auto, def );C_ADD_VARIABLE( type, name##Machine, def );
 
 struct Variables_t {
@@ -201,6 +204,15 @@ struct Variables_t {
 	C_ADD_VARIABLE( bool, MiscDamageMarker, false );
 	C_ADD_VARIABLE( Color, MiscDamageMarkerCol, Color( 255, 255, 255 ) );
 	C_ADD_VARIABLE( int, MiscHitSound, 0 );
+	C_ADD_VARIABLE( int, MiscKillSound, 0 );
+	C_ADD_VARIABLE( bool, VisKillEffect, true );
+	C_ADD_VARIABLE( Color, VisKillEffectCol, Color( 255, 149, 46 ) );
+	C_ADD_VARIABLE( bool, VisKillFlash, true );
+	C_ADD_VARIABLE( int, MiscClantagMode, 1 );          // 0 static, 1 animated ( synced to server time )
+	C_ADD_VARIABLE( bool, MiscSpectatorList, false );
+	C_ADD_VARIABLE( int, MiscSpectatorPosX, 20 );
+	C_ADD_VARIABLE( int, MiscSpectatorPosY, 420 );
+	C_ADD_VARIABLE( bool, ChamDesyncPulse, true );      // fake chams breathe and fade with the desync amount
 	C_ADD_VARIABLE( std::string, MiscCustomHitSound, "" );
 
 	C_ADD_VARIABLE( bool, MiscBuyBot, false );
@@ -218,7 +230,32 @@ struct Variables_t {
 	// ragebot
 	C_ADD_VARIABLE( bool, RagebotEnable, false );
 	C_ADD_VARIABLE( bool, RagebotResolver, true );
+	// defensive anti-aim detection ( menu: Rage > General > Defensive detection )
+	C_ADD_VARIABLE( bool, RagebotHeadSafety, false );      // demand head points safe on extra desync sides as misses stack up
+	C_ADD_VARIABLE( int, RagebotRecordMargin, 3 );         // ticks of tickbase error a record must survive before it is shot ( 0 = off )
+	C_ADD_VARIABLE( bool, RagebotDefDetect, true );
+	C_ADD_VARIABLE( int, RagebotDefMinShift, 3 );          // ticks: smaller simulation time drops are network jitter
+	C_ADD_VARIABLE( int, RagebotDefMaxShift, 22 );         // ticks: bigger drops are not a defensive window
+	C_ADD_VARIABLE( int, RagebotDefConfirmShifts, 3 );     // shifts needed inside the window to flag a player
+	C_ADD_VARIABLE( int, RagebotDefConfirmTime, 3 );       // seconds a shift counts toward that
+	C_ADD_VARIABLE( bool, RagebotDefNeedAngles, false );   // only shifts that flick pitch / yaw count
+	C_ADD_VARIABLE( bool, RagebotDefAngleConfirm, true );  // one shift with defensive angles flags immediately
+	C_ADD_VARIABLE( bool, RagebotDefPushConfirm, true );   // a drop right after a forward jump of the same size ( the tickbase push ) flags immediately
+	C_ADD_VARIABLE( int, RagebotDefPitchJump, 45 );        // degrees of pitch change that count as a defensive flick
+	C_ADD_VARIABLE( int, RagebotDefYawJump, 100 );         // degrees of yaw change ( beyond their jitter ) that count
+	C_ADD_VARIABLE( int, RagebotDefNetTolerance, 5 );      // % of our own incoming loss / choke above which shifts are blamed on our network
+	C_ADD_VARIABLE( bool, RagebotDefFilterSimultaneous, true ); // two players shifting on the same tick = network hiccup
+	C_ADD_VARIABLE( bool, RagebotDefDebug, false );        // esp line: what the detector saw per player
+	// fake flick filter ( menu: Rage > General )
+	C_ADD_VARIABLE( bool, RagebotFlickHoldNew, true );     // a newest record on a yaw none of the recent records had is not shot until the next record confirms it
+	C_ADD_VARIABLE( int, RagebotFlickJump, 60 );           // degrees from every recent yaw that make a record a flick candidate
+	C_ADD_VARIABLE( int, RagebotFlickAgree, 40 );          // degrees: the record after it is "back" when this close to a recent yaw
 	C_ADD_VARIABLE( bool, RagebotLagcompensation, true );
+	C_ADD_VARIABLE( bool, RagebotBacktrack, true ); // aim at older lag records ( off = newest record only )
+	C_ADD_VARIABLE( bool, RagebotExtrapolateBreakers, true ); // predict where lag compensation breakers are on the server
+	C_ADD_VARIABLE( bool, RagebotDebugOverlay, false ); // esp text: what the ragebot is doing with each enemy
+	C_ADD_VARIABLE( int, RagebotExtrapMaxTicks, 24 );   // never predict a lag-comp breaker further ahead than this
+	C_ADD_VARIABLE( int, RagebotExtrapMaxSpread, 40 );  // possible positions further apart than this ( units ): no shot
 	//C_ADD_VARIABLE( bool, RagebotForceSafeClampbones, false );
 	C_ADD_VARIABLE( int, RagebotWeaponGroup, 0 );
 	ADD_RAGE_VAR( int, RagebotFOV, 0 );
@@ -283,6 +320,11 @@ struct Variables_t {
 	ADD_RAGE_VAR( bool, RagebotPreferBaim, false );
 	ADD_RAGE_VAR( bool, RagebotPreferBaimDoubletap, false );
 	ADD_RAGE_VAR( bool, RagebotPreferBaimLethal, false );
+	// "Always" defaults on so configs saved before this option keep the old safety-first point choice
+	ADD_RAGE_VAR( bool, RagebotPreferSafe, true );
+	ADD_RAGE_VAR( bool, RagebotPreferSafeLethal, false );
+	ADD_RAGE_VAR( bool, RagebotPreferSafeInAir, false );
+	ADD_RAGE_VAR( bool, RagebotPreferSafeAfterMiss, false );
 	C_ADD_VARIABLE( keybind_t, RagebotForceBaimKey, { } );
 	C_ADD_VARIABLE( keybind_t, RagebotForceSafePointKey, { } );
 	C_ADD_VARIABLE( keybind_t, RagebotForceYawSafetyKey, { } );
@@ -332,6 +374,50 @@ struct Variables_t {
 
 	C_ADD_VARIABLE( int, SkinKnifeChanger, 0 );
 	C_ADD_VARIABLE( int, SkinGloveChanger, 0 );
+
+	/* CUSTOM ANTI-AIM ( momentum builder ) */
+	C_ADD_VARIABLE( int, AntiaimMode, 0 ); // 0 classic, 1 custom
+
+	ADD_AA_STATE_VAR( bool, AACEnable, false );
+	ADD_AA_STATE_VAR( int, AACPitch, 1 );        // disabled, down, up, random
+	ADD_AA_STATE_VAR( int, AACYawMode, 0 );      // default, 3 way, extrapolated, extrapolated skitter, synced body, synced random, delayed jitter
+	ADD_AA_STATE_VAR( int, AACYawCenter, 0 );
+	ADD_AA_STATE_VAR( int, AACYawLeft, 10 );
+	ADD_AA_STATE_VAR( int, AACYawRight, -10 );
+	ADD_AA_STATE_VAR( int, AACWay1, -30 );
+	ADD_AA_STATE_VAR( int, AACWay2, 0 );
+	ADD_AA_STATE_VAR( int, AACWay3, 30 );
+	ADD_AA_STATE_VAR( int, AACRandMinLeft, 0 );
+	ADD_AA_STATE_VAR( int, AACRandMaxLeft, 20 );
+	ADD_AA_STATE_VAR( int, AACRandMinRight, -20 );
+	ADD_AA_STATE_VAR( int, AACRandMaxRight, 0 );
+	ADD_AA_STATE_VAR( int, AACJitterDelay, 2 );
+	ADD_AA_STATE_VAR( int, AACJitterRandom, 0 );
+	ADD_AA_STATE_VAR( int, AACBody, 1 );         // static, jitter, opposite, off
+	ADD_AA_STATE_VAR( int, AACBodySide, 0 );     // left, right
+	ADD_AA_STATE_VAR( int, AACBodySpeed, 1 );    // send cycles per flip, 0 = random
+	ADD_AA_STATE_VAR( bool, AACNoFreestand, false );
+
+	C_ADD_VARIABLE( int, AACDefYaw, 0 );         // none, forward, spin, sideways, jitter 90, opposite, opposite jitter, 3-way, 5-way, random
+	C_ADD_VARIABLE( int, AACDefPitch, 0 );       // none, zero, up, down, random, semi-up, semi-down
+	C_ADD_VARIABLE( bool, AACDefHeightPitch, false );
+	C_ADD_VARIABLE( int, AACDefPitchAbove, 3 );  // 0 = use defensive pitch, then same list as AACDefPitch
+	C_ADD_VARIABLE( int, AACDefPitchBelow, 2 );
+	C_ADD_VARIABLE( int, AACDefHeightThreshold, 8 );
+	C_ADD_VARIABLE( bool, AACOnUse, false );
+	C_ADD_VARIABLE( bool, AACSafeHead, false );
+
+	/* HUD ( momentum visuals ) */
+	C_ADD_VARIABLE( bool, VisIndicators, false );
+	C_ADD_VARIABLE( Color, VisIndicatorsCol, Color( 255, 149, 46 ) );
+	C_ADD_VARIABLE( bool, VisMinDmgIndicator, false );
+	C_ADD_VARIABLE( bool, VisCustomScope, false );
+	C_ADD_VARIABLE( Color, VisCustomScopeCol, Color( 255, 149, 46 ) );
+	C_ADD_VARIABLE( int, VisCustomScopeGap, 10 );
+	C_ADD_VARIABLE( int, VisCustomScopeSize, 60 );
 };
 
 inline Variables_t Vars;
+
+// all 9 per-state ids of a custom anti-aim variable, indexed by CAntiAim state
+#define AA_STATE_IDS( name ) std::array< std::uint32_t, 9 >{ Vars.name##Default, Vars.name##Stand, Vars.name##Move, Vars.name##Slow, Vars.name##Duck, Vars.name##Air, Vars.name##AirDuck, Vars.name##Fakelag, Vars.name##Defensive }

@@ -1,6 +1,7 @@
 #include "../core/hooks.h"
 #include "../features/animations/animation.h"
 #include "../context.h"
+#include "../features/rage/net_simtime.h"
 #include <intrin.h>
 
 bool FASTCALL Hooks::hkSvCheatsGetBool( CConVar* thisptr, int edx ) {
@@ -31,10 +32,29 @@ void CDECL Hooks::m_bClientSideAnimationHook( const CRecvProxyData* data, void* 
 }
 
 void CDECL Hooks::m_flSimulationTimeHook( const CRecvProxyData* data, void* entity, void* output ) {
+	const auto player{ static_cast< CBaseEntity* >( entity ) };
+	const int index{ player ? player->Index( ) : 0 };
+	const bool isPlayer{ index >= 1 && index <= 64 };
+
 	// fix simtime being inaccurate due to rounding
 	// when its smaller than network base (caused by defensive dt).
-	if ( data->Value.Int )
-		return m_flSimulationTime( data, entity, output );
+	if ( !data->Value.Int ) {
+		// the server encodes simulation time relative to a network base ( 100 tick steps, offset per entity ): a value
+		// below that base can only be a simulation time that went back, and arrives as 0. keep the entity's value as
+		// before, but tell the defensive detector it dropped below the base
+		if ( isPlayer && Interfaces::ClientState ) {
+			const int tick{ Interfaces::ClientState->iServerTick };
+			const int base{ 100 * ( ( tick - index % 32 ) / 100 ) };
+			NetSim::Note( index, TICKS_TO_TIME( base - 1 ) );
+		}
+		return;
+	}
+
+	m_flSimulationTime( data, entity, output );
+
+	// every value the server sent, in order ( the animation system may overwrite the entity's copy later )
+	if ( isPlayer )
+		NetSim::Note( index, *static_cast< float* >( output ) );
 }
 
 void CDECL Hooks::m_hWeaponHook( const CRecvProxyData* data, void* entity, void* output ) {

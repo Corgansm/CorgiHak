@@ -1,10 +1,12 @@
 #include "../core/hooks.h"
+#include "../utils/crash_log.h"
 #include "../core/menu rework/menu.h"
 #include "../utils/render.h"
 #include "../features/visuals/visuals.h"
 #include "../features/misc/logger.h"
 #include "../context.h"
 #include "../core/framework/framework.h"
+#include "../core/lua/lua_engine.h"
 
 void FASTCALL Hooks::hkLockCursor( ISurface* thisptr, int edx )
 {
@@ -25,7 +27,7 @@ void FASTCALL Hooks::hkPaintTraverse( ISurface* thisptr, int edx, unsigned int u
 
 	
 
-	if ( Config::Get<bool>( Vars.RemovalScope ) && uPanelHash == FNV1A::HashConst( ( "HudZoom" ) ) )
+	if ( ( Config::Get<bool>( Vars.RemovalScope ) || Config::Get<bool>( Vars.VisCustomScope ) ) && uPanelHash == FNV1A::HashConst( ( "HudZoom" ) ) )
 		return;
 
 	oPaintTraverse( thisptr, edx, uPanel, bForceRepaint, bForce );
@@ -48,10 +50,20 @@ void FASTCALL Hooks::HkPaint( const std::uintptr_t ecx, const std::uintptr_t edx
 	if ( mode & 1 /* || mode & 2*/ ) {
 		StartDraw( Interfaces::Surface );
 		
+		CRASH_MARK( "PAINT:52 Features::Visuals.Main( );" );
 		Features::Visuals.Main( );
+		CRASH_MARK( "PAINT:53 Features::Visuals.Watermark( );" );
 		Features::Visuals.Watermark( );
+		CRASH_MARK( "PAINT:54 Features::Visuals.KeybindsList( );" );
 		Features::Visuals.KeybindsList( );
+		CRASH_MARK( "PAINT: Features::Visuals.SpectatorList( );" );
+		Features::Visuals.SpectatorList( );
+		CRASH_MARK( "PAINT:55 Features::Logger.PrintToScreen( );" );
 		Features::Logger.PrintToScreen( );
+
+		// lua: queued loads, menu item sync, paint / paint_ui ( drawn under the menu )
+		CRASH_MARK( "PAINT: Lua::OnPaint( );" );
+		Lua::OnPaint( );
 
 		/* MENU */
 		Inputsys::updateNeededKeys( );
@@ -63,9 +75,14 @@ void FASTCALL Hooks::HkPaint( const std::uintptr_t ecx, const std::uintptr_t edx
 			Menu::MenuAlpha += 5.f * Interfaces::Globals->flFrameTime;
 
 		Menu::MenuAlpha = std::clamp( Menu::MenuAlpha, 0.f, 1.f );*/
-		Render::GlobalAlpha = Menu::m_flAlpha;
+		Render::GlobalAlpha = Anim::EaseOut( Menu::m_flAlpha );
 
+		CRASH_MARK( "PAINT:69 Menu::Render( );" );
 		Menu::Render( );
+
+		// lua: menu button presses, ui callbacks
+		CRASH_MARK( "PAINT: Lua::OnPaintPost( );" );
+		Lua::OnPaintPost( );
 
 		//Menu::render( );
 		//Menu::GetElements( );

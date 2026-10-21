@@ -6,7 +6,7 @@ bool CRageBot::ExtrapolatePlayer( PlayerEntry& entry, float yaw, int resolverSid
 			yaw = ExtrapolateYawFromRecords( entry.m_pRecords, amount );
 
 			if ( yaw == -1 )
-				entry.m_pRecords.back( )->m_angEyeAngles.y;
+				yaw = entry.m_pRecords.back( )->m_angEyeAngles.y;
 		}
 		else
 			yaw = entry.m_flPreviousYaws.back( ).m_flYaw;
@@ -93,7 +93,8 @@ bool CRageBot::ExtrapolatePlayer( CBasePlayer* player, float baseTime, int amoun
 	return true;
 }
 
-void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, int resolverSide, bool last, PreviousExtrapolationData_t& previous, float direction, float assumedSpeed, bool local ) {
+void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, int resolverSide, bool last, PreviousExtrapolationData_t& previous, float direction, float assumedSpeed, bool local )
+{
 	CUserCmd cmd;
 	CMoveData moveData;
 	memset( &moveData, 0, sizeof( CMoveData ) );
@@ -131,7 +132,8 @@ void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, i
 
 	// assume they will stop
 	// TODO: more logic?
-	if ( !local && player->m_fFlags( ) & FL_ONGROUND ) {
+	if ( !local && player->m_fFlags( ) & FL_ONGROUND ) 
+	{
 		const auto hitboxSet{ ctx.m_pLocal->m_pStudioHdr( )->pStudioHdr->GetHitboxSet( ctx.m_pLocal->m_nHitboxSet( ) ) };
 
 		auto enemyShootPos{ player->m_vecOrigin( ) };
@@ -164,7 +166,8 @@ void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, i
 	moveDir.y = direction;
 	Features::Misc.MoveMINTFix( cmd, moveDir, player->m_fFlags( ), player->m_MoveType( ) );
 
-	if ( !last ) {
+	if ( !last ) 
+	{
 		if ( resolverSide == 1 )
 			cmd.viewAngles.y += 120.f;
 		else if ( resolverSide == 2 )
@@ -186,7 +189,6 @@ void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, i
 	const auto backupCurtime{ Interfaces::Globals->flCurTime };
 
 	Interfaces::Prediction->bInPrediction = true;
-	Interfaces::MoveHelper->SetHost( player );
 
 	if ( player->CurrentCommand( ) )
 		player->CurrentCommand( ) = &cmd;
@@ -198,36 +200,34 @@ void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, i
 	Interfaces::Globals->flCurTime = time;
 
 	ctx.m_bProhibitSounds = true;
-	Interfaces::Prediction->CheckMovingGround( player, Interfaces::Globals->flFrameTime );
-	Interfaces::Prediction->SetupMove( player, &cmd, Interfaces::MoveHelper, &moveData );
-	Interfaces::GameMovement->ProcessMovement( player, &moveData );
-	Interfaces::Prediction->FinishMove( player, &cmd, &moveData );
-	Interfaces::MoveHelper->SetHost( nullptr );
+	{
+		Interfaces::GameMovement->StartTrackPredictionErrors(player);
+		{
+			Interfaces::Prediction->CheckMovingGround(player, Interfaces::Globals->flFrameTime);
+
+			Interfaces::MoveHelper->SetHost(player);
+
+			Interfaces::Prediction->SetupMove(player, &cmd, Interfaces::MoveHelper, &moveData);
+			Interfaces::GameMovement->ProcessMovement(player, &moveData);
+
+			Interfaces::Prediction->FinishMove(player, &cmd, &moveData);
+			Interfaces::MoveHelper->ProcessImpacts();
+		}
+		Interfaces::GameMovement->FinishTrackPredictionErrors(player);
+
+		Interfaces::MoveHelper->SetHost(nullptr);
+	}
 	ctx.m_bProhibitSounds = false;
 
-	/*if ( player->m_fFlags( ) & FL_DUCKING ) {
-		player->SetCollisionBounds( { -16.f, -16.f, 0.f }, { 16.f, 16.f, 54.f } );
-		player->m_vecViewOffset( ).z = 46.f;
-	}
-	else {
-		player->SetCollisionBounds( { -16.f, -16.f, 0.f }, { 16.f, 16.f, 72.f } );
-		player->m_vecViewOffset( ).z = 64.f;
-	}
-
-	if ( ( player->m_fFlags( ) & FL_DUCKING ) != backupDucking ) {
-		// rebuild: server.dll/client.dll @ 55 8B EC 8B 45 10 F3 0F 10 81
-		player->m_flNewBoundsMaxs( ) = player->m_flUnknownVar( ) + backupMaxsZ;
-		player->m_flNewBoundsTime( ) = time;
-	}*/
-
-	player->m_vecAbsVelocity( ) = player->m_vecVelocity( );
-	player->SetAbsOrigin( player->m_vecOrigin( ) );
 	player->m_iEFlags( ) &= ~EFL_DIRTY_ABSVELOCITY;
+
+	player->SetAbsOrigin(player->m_vecOrigin());
+	player->m_vecAbsVelocity() = player->m_vecVelocity();
 
 	Interfaces::Prediction->bInPrediction = backupInPrediction;
 
-	// animation
-	if ( !local ) {
+	if ( !local ) 
+	{
 		const auto state{ player->m_pAnimState( ) };
 
 		if ( state->iLastUpdateFrame == Interfaces::Globals->iFrameCount )
@@ -239,13 +239,15 @@ void CRageBot::SimulatePlayer( CBasePlayer* player, float time, QAngle angles, i
 		player->UpdateClientsideAnimations( );
 		player->m_bClientSideAnimation( ) = ctx.m_bUpdatingAnimations = false;
 	}
-	else {
+	else 
+	{
 		player->m_nTickBase( ) = TIME_TO_TICKS( Interfaces::Globals->flCurTime );
 		Features::AnimSys.UpdateLocal( cmd.viewAngles, false, cmd );
 	}
 
 	if ( player->CurrentCommand( ) )
 		*player->CurrentCommand( ) = originalplayercommand;
+
 	*( *reinterpret_cast< unsigned int** >( Displacement::Sigs.uPredictionRandomSeed ) ) = originalrandomseed;
 	*( *reinterpret_cast< CBasePlayer*** >( Displacement::Sigs.pPredictionPlayer ) ) = pPredictionPlayer;
 
@@ -282,8 +284,8 @@ void CRageBot::AdjustDuckingVars( PlayerEntry& entry, int extrapolationAmount ) 
 			if ( predictedDuckAmount >= 1.f ) {
 				entry.m_pPlayer->m_vecViewOffset( ).z = 46.f;
 
-				entry.m_pPlayer->m_flNewBoundsMaxs( ) = entry.m_pPlayer->m_flUnknownVar( ) + entry.m_pPlayer->m_vecMaxs( ).z;
-				entry.m_pPlayer->m_flNewBoundsTime( ) = entry.m_pPlayer->m_flSimulationTime( ) + TICKS_TO_TIME( i );
+				//entry.m_pPlayer->m_flNewBoundsMaxs( ) = entry.m_pPlayer->m_flUnknownVar( ) + entry.m_pPlayer->m_vecMaxs( ).z;
+				//entry.m_pPlayer->m_flNewBoundsTime( ) = entry.m_pPlayer->m_flSimulationTime( ) + TICKS_TO_TIME( i );
 				break;
 			}
 		}
@@ -310,8 +312,8 @@ void CRageBot::AdjustDuckingVars( PlayerEntry& entry, int extrapolationAmount ) 
 			//      which is certainly important.
 			if ( predictedDuckAmount <= 0.75f && entry.m_pPlayer->m_fFlags( ) & ( FL_ANIMDUCKING | FL_DUCKING ) ) {
 				entry.m_pPlayer->m_vecViewOffset( ).z = 64.f;
-				entry.m_pPlayer->m_flNewBoundsMaxs( ) = entry.m_pPlayer->m_flUnknownVar( ) + entry.m_pPlayer->m_vecMaxs( ).z;
-				entry.m_pPlayer->m_flNewBoundsTime( ) = entry.m_pPlayer->m_flSimulationTime( ) + TICKS_TO_TIME( i );
+				//entry.m_pPlayer->m_flNewBoundsMaxs( ) = entry.m_pPlayer->m_flUnknownVar( ) + entry.m_pPlayer->m_vecMaxs( ).z;
+				//entry.m_pPlayer->m_flNewBoundsTime( ) = entry.m_pPlayer->m_flSimulationTime( ) + TICKS_TO_TIME( i );
 				break;
 			}
 		}
@@ -395,7 +397,7 @@ float CRageBot::ExtrapolateYawFromRecords( std::vector<std::shared_ptr<LagRecord
 			const auto angleDiffIt{ Math::AngleDiff( ( it + i + 1 )->get( )->m_angEyeAngles.y, ( it + i )->get( )->m_angEyeAngles.y ) };
 			const auto angleDiffStart{ Math::AngleDiff( ( begin + i + 1 )->get( )->m_angEyeAngles.y, ( begin + i )->get( )->m_angEyeAngles.y ) };
 
-			if ( std::abs( angleDiffIt - angleDiffStart < 20.f ) )
+			if ( std::abs( angleDiffIt - angleDiffStart ) < 20.f )
 				++matches;
 			else
 				break;

@@ -10,7 +10,7 @@ void CVisuals::ManageHitmarkers( ) {
         std::remove_if(
             hits.begin( ), hits.end( ),
             [ & ]( const std::shared_ptr<hitmarker_t>& hit ) -> bool {
-                return hit->time + 2.f < Interfaces::Globals->flRealTime || hit->alpha <= 0.f;
+                return hit->time + 1.6f < Interfaces::Globals->flRealTime;
             }
         ),
         hits.end( )
@@ -22,12 +22,10 @@ void CVisuals::ManageHitmarkers( ) {
         if ( hit->screen.IsZero( ) )
             continue;
 
-        const auto step = Interfaces::Globals->flFrameTime * 2;
-
-        if ( hit->time + 1.5f <= Interfaces::Globals->flRealTime )
-            hit->alpha -= step;
-
-        hit->step += step;
+        // shared timing: hold, then ease out over the last half second
+        const float age{ Interfaces::Globals->flRealTime - hit->time };
+        hit->alpha = 1.f - Anim::EaseIn( std::clamp( ( age - 1.1f ) / 0.5f, 0.f, 1.f ) );
+        hit->step = age;
 
         DrawHitMarker( hit );
     }
@@ -35,7 +33,9 @@ void CVisuals::ManageHitmarkers( ) {
 
 void CVisuals::DrawHitMarker( const std::shared_ptr<hitmarker_t>& hit ) {
     if ( hit->alpha > 0 ) {
-        const auto col{ Color( 200, 200, 200, static_cast< int >( 255 * hit->alpha ) ) };
+        // fresh hits flash in the accent colour, then settle to cream
+        const auto flash{ std::clamp( 1.f - ( Interfaces::Globals->flRealTime - hit->time ) * 4.f, 0.f, 1.f ) };
+        const auto col{ Color( 255, static_cast< int >( 236 - 87 * flash ), static_cast< int >( 214 - 168 * flash ), static_cast< int >( 255 * hit->alpha ) ) };
         const auto outlineCol{ Color( 10, 10, 10, static_cast< int >( 255 * hit->alpha ) ) };
 
         // TODO: fix bottom pixel of each line....
@@ -89,10 +89,25 @@ void CVisuals::DrawHitMarker( const std::shared_ptr<hitmarker_t>& hit ) {
         }
 
         if ( Config::Get<bool>( Vars.MiscDamageMarker ) ) {
-            const auto col = Config::Get<Color>( Vars.MiscDamageMarkerCol ).Set<COLOR_A>( Config::Get<Color>( Vars.MiscDamageMarkerCol ).Get<COLOR_A>( ) * hit->alpha );
+            // damage numbers: rise and drift a little, colour by what was hit ( kill red, head orange, body = picked colour )
+            const float age{ hit->step };
+            Color base{ Config::Get<Color>( Vars.MiscDamageMarkerCol ) };
+            if ( hit->lethal )
+                base = Color( 255, 72, 72, static_cast< int >( base.Get<COLOR_A>( ) ) );
+            else if ( hit->hitgroup == HITGROUP_HEAD )
+                base = Color( 255, 149, 46, static_cast< int >( base.Get<COLOR_A>( ) ) );
 
-            const auto displayDmg{ static_cast< int >( std::ceil( hit->damage * std::min( Interfaces::Globals->flRealTime - hit->time, 1.f ) ) ) };
-            Render::Text( Fonts::DamageMarker, Vector2D( hit->screen.x, hit->screen.y - 12 - hit->step * 5 ), col, FONT_CENTER, std::to_string( displayDmg ).c_str( ) );
+            const float pop{ Anim::EaseOutBack( std::min( age / 0.16f, 1.f ) ) };
+            const float rise{ 14.f + 30.f * Anim::EaseOut( age / 1.6f ) + ( 1.f - std::min( pop, 1.f ) ) * 6.f };
+            const Vector2D textPos{ hit->screen.x + hit->drift * Anim::EaseOut( age / 1.6f ), hit->screen.y - rise };
+
+            // counts up quickly instead of appearing at full value
+            const auto displayDmg{ static_cast< int >( std::ceil( hit->damage * Anim::EaseOut( std::min( age / 0.25f, 1.f ) ) ) ) };
+            const auto text{ std::to_string( displayDmg ) };
+
+            const int alpha{ static_cast< int >( std::clamp( base.Get<COLOR_A>( ) * hit->alpha * std::clamp( pop, 0.f, 1.f ), 0.f, 255.f ) ) };
+            Render::Text( Fonts::DamageMarker, textPos + Vector2D( 1.f, 1.f ), Color( 0, 0, 0, alpha * 2 / 3 ), FONT_CENTER, text.c_str( ) );
+            Render::Text( Fonts::DamageMarker, textPos, base.Set<COLOR_A>( alpha ), FONT_CENTER, text.c_str( ) );
         }
     }
 }

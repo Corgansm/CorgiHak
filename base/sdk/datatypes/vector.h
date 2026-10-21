@@ -1,5 +1,9 @@
 #pragma once
+// @credits: https://github.com/ValveSoftware/source-sdk-2013/blob/master/sp/src/public/mathlib/vector.h
+
+// used: isfinite, fmodf, sqrtf
 #include <cmath>
+// used: numeric_limits
 #include <limits>
 
 class Vector2D
@@ -20,7 +24,7 @@ public:
 	constexpr Vector2D( int x, float y ) :
 		x( static_cast< float >( x ) ), y( y ) { }
 
-	bool IsZero() const
+	[[nodiscard]] bool IsZero() const
 	{
 		return (std::fpclassify(this->x) == FP_ZERO &&
 			std::fpclassify(this->y) == FP_ZERO);
@@ -126,7 +130,7 @@ public:
 	constexpr Vector(const Vector2D& vecBase2D) :
 		x(vecBase2D.x), y(vecBase2D.y), z(0.0f) { }
 
-	bool IsValid() const
+	[[nodiscard]] bool IsValid() const
 	{
 		return std::isfinite(this->x) && std::isfinite(this->y) && std::isfinite(this->z);
 	}
@@ -136,12 +140,12 @@ public:
 		this->x = this->y = this->z = std::numeric_limits<float>::infinity();
 	}
 
-	float* data()
+	[[nodiscard]] float* data()
 	{
 		return reinterpret_cast<float*>(this);
 	}
 
-	const float* data() const
+	[[nodiscard]] const float* data() const
 	{
 		return reinterpret_cast<float*>(const_cast<Vector*>(this));
 	}
@@ -266,61 +270,61 @@ public:
 		return Vector(this->x / flDivide, this->y / flDivide, this->z / flDivide);
 	}
 
-	bool IsEqual(const Vector& vecEqual, const float flErrorMargin = std::numeric_limits<float>::epsilon()) const
+	[[nodiscard]] bool IsEqual(const Vector& vecEqual, const float flErrorMargin = std::numeric_limits<float>::epsilon()) const
 	{
 		return (std::fabsf(this->x - vecEqual.x) < flErrorMargin &&
 			std::fabsf(this->y - vecEqual.y) < flErrorMargin &&
 			std::fabsf(this->z - vecEqual.z) < flErrorMargin);
 	}
 
-	bool IsZero() const
+	[[nodiscard]] bool IsZero() const
 	{
 		return (std::fpclassify(this->x) == FP_ZERO &&
 			std::fpclassify(this->y) == FP_ZERO &&
 			std::fpclassify(this->z) == FP_ZERO);
 	}
 
-	Vector2D ToVector2D() const
+	[[nodiscard]] Vector2D ToVector2D() const
 	{
 		return Vector2D(this->x, this->y);
 	}
 
-	float Length() const
+	[[nodiscard]] float Length() const
 	{
 		return std::sqrtf(this->LengthSqr());
 	}
 
-	constexpr float LengthSqr() const
+	[[nodiscard]] constexpr float LengthSqr() const
 	{
 		return DotProduct(*this);
 	}
 
-	float Length2D() const
+	[[nodiscard]] float Length2D() const
 	{
 		return std::sqrtf(this->Length2DSqr());
 	}
 
-	constexpr float Length2DSqr() const
+	[[nodiscard]] constexpr float Length2DSqr() const
 	{
 		return (this->x * this->x + this->y * this->y);
 	}
 
-	float DistTo(const Vector& vecEnd) const
+	[[nodiscard]] float DistTo(const Vector& vecEnd) const
 	{
 		return (*this - vecEnd).Length();
 	}
 
-	float DistTo2D( const Vector& vecEnd ) const
+	[[nodiscard]] float DistTo2D( const Vector& vecEnd ) const
 	{
 		return ( *this - vecEnd ).Length2D( );
 	}
 
-	constexpr float DistToSqr(const Vector& vecEnd) const
+	[[nodiscard]] constexpr float DistToSqr(const Vector& vecEnd) const
 	{
 		return (*this - vecEnd).LengthSqr();
 	}
 
-	Vector Normalized() const
+	[[nodiscard]] Vector Normalized() const
 	{
 		Vector vecOut = *this;
 		vecOut.NormalizeInPlace();
@@ -339,12 +343,12 @@ public:
 		return flLength;
 	}
 
-	constexpr float DotProduct(const Vector& vecDot) const
+	[[nodiscard]] constexpr float DotProduct(const Vector& vecDot) const
 	{
 		return (this->x * vecDot.x + this->y * vecDot.y + this->z * vecDot.z);
 	}
 
-	constexpr Vector CrossProduct(const Vector& vecCross) const
+	[[nodiscard]] constexpr Vector CrossProduct(const Vector& vecCross) const
 	{
 		return Vector(this->y * vecCross.z - this->z * vecCross.y, this->z * vecCross.x - this->x * vecCross.z, this->x * vecCross.y - this->y * vecCross.x);
 	}

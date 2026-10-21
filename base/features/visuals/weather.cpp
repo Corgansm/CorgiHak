@@ -62,12 +62,12 @@ void CWeather::Main( ) {
 			auto new_mins{ eyePos + it.m_vecMins };
 			auto new_maxs{ eyePos + it.m_vecMaxs };
 
-			it.m_pEntity->GetCollideable( )->OBBMins( ) = new_mins;
-			it.m_pEntity->GetCollideable( )->OBBMaxs( ) = new_maxs;
+			//it.m_pEntity->GetCollideable( )->OBBMins( ) = new_mins;
+			//it.m_pEntity->GetCollideable( )->OBBMaxs( ) = new_maxs;
 
 			auto* coll = it.m_pEntity->GetCollideable( );
-			coll->OBBMins( ) = new_mins;
-			coll->OBBMaxs( ) = new_maxs;
+			//coll->OBBMins( ) = new_mins;
+			//coll->OBBMaxs( ) = new_maxs;
 		}
 	}
 }
@@ -163,12 +163,12 @@ void CWeather::CreatePrecipEntity( PrecipitationEntity_t* ent_info, EPrecipitati
 
 	*( int* ) ( ( uintptr_t ) ent_info->m_pEntity + Displacement::Netvars->m_nPrecipType ) = precip_mode;
 
-	ent_info->m_pEntity->GetCollideable( )->OBBMins( ) = Vector( -2048.f, -2048.f, -2048.f );
-	ent_info->m_pEntity->GetCollideable( )->OBBMaxs( ) = Vector( 2048.f, 2048.f, 2048.f );
+	//ent_info->m_pEntity->GetCollideable( )->OBBMins( ) = Vector( -2048.f, -2048.f, -2048.f );
+	//ent_info->m_pEntity->GetCollideable( )->OBBMaxs( ) = Vector( 2048.f, 2048.f, 2048.f );
 
 	auto* coll = ent_info->m_pEntity->GetCollideable( );
-	coll->OBBMins( ) = Vector( -64.f, -64.f, -64.f );
-	coll->OBBMaxs( ) = Vector( 64.f, 64.f, 64.f );
+	//coll->OBBMins( ) = Vector( -64.f, -64.f, -64.f );
+	//coll->OBBMaxs( ) = Vector( 64.f, 64.f, 64.f );
 
 	ent_info->m_pEntity->SetModelIndex( ent_info->m_iModelIndex );
 	*( bool* ) ( ( DWORD ) ent_info->m_pEntity + 0x000000ED ) = false;

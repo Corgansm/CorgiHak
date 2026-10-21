@@ -1,4 +1,5 @@
 #pragma once
+// used: std::array
 #include <array>
 
 enum
@@ -20,42 +21,79 @@ class Color
 public:
 	Color() = default;
 
-	constexpr Color(std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a = 255) :
-		arrColor({ r, g, b, a }) { }
-
-	constexpr Color(int r, int g, int b, int a = 255) :
-		arrColor({ static_cast<std::uint8_t>(r), static_cast<std::uint8_t>(g), static_cast<std::uint8_t>(b), static_cast<std::uint8_t>(a) }) { }
-
-	constexpr Color(float r, float g, float b, float a = 1.0f) :
-		arrColor({ static_cast<std::uint8_t>(r * 255.f), static_cast<std::uint8_t>(g * 255.f), static_cast<std::uint8_t>(b * 255.f), static_cast<std::uint8_t>(a * 255.f) }) { }
-
-	void Get(std::uint8_t& r, std::uint8_t& g, std::uint8_t& b, std::uint8_t& a) const
-	{
-		r = arrColor[COLOR_R];
-		g = arrColor[COLOR_G];
-		b = arrColor[COLOR_B];
-		a = arrColor[COLOR_A];
+	/* default color constructor (in: 0 - 255) */
+	constexpr Color( std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a = 255 ) {
+		this->r = r;
+		this->g = g;
+		this->b = b;
+		this->a = a;
 	}
 
-	D3DCOLOR GetD3D() const
+	constexpr Color( int r, int g, int b, int a = 255 ) {
+		this->r = static_cast< std::uint8_t >( r );
+		this->g = static_cast< std::uint8_t >( g );
+		this->b = static_cast< std::uint8_t >( b );
+		this->a = static_cast< std::uint8_t >( a );
+	}
+
+	/* float color constructor (in: 0.0 - 1.0) */
+	constexpr Color( float r, float g, float b, float a = 1.0f ) {
+		this->r = static_cast< std::uint8_t >( r * 255.f );
+		this->g = static_cast< std::uint8_t >( g * 255.f );
+		this->b = static_cast< std::uint8_t >( b * 255.f );
+		this->a = static_cast< std::uint8_t >( a * 255.f );
+	}
+
+	/* output color to given variables */
+	void Get(std::uint8_t& r, std::uint8_t& g, std::uint8_t& b, std::uint8_t& a) const
 	{
-		return D3DCOLOR_ARGB(arrColor[COLOR_A], arrColor[COLOR_R], arrColor[COLOR_G], arrColor[COLOR_B]);
+		r = this->r;
+		g = this->g;
+		b = this->b;
+		//a = this->a;
+	}
+
+	/* convert color to directx argb */
+	[[nodiscard]] D3DCOLOR GetD3D() const
+	{
+		return D3DCOLOR_ARGB(a, r, g, b);
 	}
 
 
 	std::uint8_t& operator[](const std::size_t i)
 	{
-		return this->arrColor[i];
+		switch ( i ) {
+		case COLOR_R:
+			return r;
+		case COLOR_G:
+			return g;
+		case COLOR_B:
+			return b;
+		case COLOR_A:
+			return a;
+		}
 	}
 
 	const std::uint8_t& operator[](const std::size_t i) const
 	{
-		return this->arrColor[i];
+		switch ( i ) {
+		case COLOR_R:
+			return r;
+		case COLOR_G:
+			return g;
+		case COLOR_B:
+			return b;
+		case COLOR_A:
+			return a;
+		}
 	}
 
 	bool operator==(const Color& colSecond) const
 	{
-		return this->arrColor == colSecond.arrColor;
+		return this->r == colSecond.r
+			&& this->g == colSecond.g
+			&& this->b == colSecond.b
+			&& this->a == colSecond.a;
 	}
 
 	bool operator!=(const Color& colSecond) const
@@ -65,69 +103,134 @@ public:
 
 	Color& operator=(const Color& colFrom)
 	{
-		arrColor[COLOR_R] = colFrom.arrColor[COLOR_R];
-		arrColor[COLOR_G] = colFrom.arrColor[COLOR_G];
-		arrColor[COLOR_B] = colFrom.arrColor[COLOR_B];
-		arrColor[COLOR_A] = colFrom.arrColor[COLOR_A];
+		r = colFrom.r;
+		g = colFrom.g;
+		b = colFrom.b;
+		a = colFrom.a;
 		return *this;
 	}
 
+	/* returns certain R/G/B/A value */
 	template <std::size_t N>
-	std::uint8_t Get() const
+	[[nodiscard]] std::uint8_t Get() const
 	{
 		static_assert(N >= COLOR_R && N <= COLOR_A, "given index is out of range");
-		return arrColor[N];
+		switch ( N ) {
+		case COLOR_R:
+			return r;
+		case COLOR_G:
+			return g;
+		case COLOR_B:
+			return b;
+		case COLOR_A:
+			return a;
+		}
 	}
 
+	/* returns copy of color with changed certain R/G/B/A value to given value */
 	template <std::size_t N>
-	Color Set(const std::uint8_t nValue) const
+	[[nodiscard]] Color Set(const std::uint8_t nValue) const
 	{
 		static_assert(N >= COLOR_R && N <= COLOR_A, "given index is out of range");
 
 		Color colCopy = *this;
-		colCopy.arrColor[N] = nValue;
+		switch ( N ) {
+		case COLOR_R:
+			colCopy.r = nValue;
+			break;
+		case COLOR_G:
+			colCopy.g = nValue;
+			break;
+		case COLOR_B:
+			colCopy.b = nValue;
+			break;
+		case COLOR_A:
+			colCopy.a = nValue;
+			break;
+		}
+
 		return colCopy;
 	}
 
 	__forceinline Color Lerp( Color to, float strength ) {
 		return Color(
-			static_cast< int >( ( to.arrColor[ 0 ] - arrColor[ 0 ] ) * strength ) + arrColor[ 0 ],
-			static_cast< int >( ( to.arrColor[ 1 ] - arrColor[ 1 ] ) * strength ) + arrColor[ 1 ],
-			static_cast< int >( ( to.arrColor[ 2 ] - arrColor[ 2 ] ) * strength ) + arrColor[ 2 ],
-			static_cast< int >( ( to.arrColor[ 3 ] - arrColor[ 3 ] ) * strength ) + arrColor[ 3 ]
+			static_cast< int >( ( to.r - r ) * strength ) + r,
+			static_cast< int >( ( to.g - g ) * strength ) + g,
+			static_cast< int >( ( to.b - b ) * strength ) + b,
+			static_cast< int >( ( to.a - a ) * strength ) + a
 		);
 	}
 
+	/* returns copy of color with multiplied certain R/G/B/A value by given value */
 	template <std::size_t N>
-	Color Multiplier(const float flValue) const
+	[[nodiscard]] Color Multiplier(const float flValue) const
 	{
 		static_assert(N >= COLOR_R && N <= COLOR_A, "given index is out of range");
 
 		Color colCopy = *this;
-		colCopy.arrColor[N] = static_cast<std::uint8_t>(static_cast<float>(colCopy.arrColor[N]) * flValue);
+
+		switch ( N ) {
+		case COLOR_R:
+			colCopy.r *= flValue;
+			break;
+		case COLOR_G:
+			colCopy.g *= flValue;
+			break;
+		case COLOR_B:
+			colCopy.b *= flValue;
+			break;
+		case COLOR_A:
+			colCopy.a *= flValue;
+			break;
+		}
 		return colCopy;
 	}
 
+	/* returns copy of color with divided certain R/G/B/A value by given value */
 	template <std::size_t N>
-	Color Divider(const int iValue) const
+	[[nodiscard]] Color Divider(const int iValue) const
 	{
 		static_assert(N >= COLOR_R && N <= COLOR_A, "given index is out of range");
 
 		Color colCopy = *this;
-		colCopy.arrColor[N] /= iValue;
+
+		switch ( N ) {
+		case COLOR_R:
+			colCopy.r /= iValue;
+			break;
+		case COLOR_G:
+			colCopy.g /= iValue;
+			break;
+		case COLOR_B:
+			colCopy.b /= iValue;
+			break;
+		case COLOR_A:
+			colCopy.a /= iValue;
+			break;
+		}
 		return colCopy;
 	}
 
 	/* returns certain R/G/B/A float value (in: 0 - 255, out: 0.0 - 1.0) */
 	template <std::size_t N>
-	float Base() const
+	[[nodiscard]] float Base() const
 	{
 		static_assert(N >= COLOR_R && N <= COLOR_A, "given index is out of range");
-		return arrColor[N] / 255.f;
+
+		switch ( N ) {
+		case COLOR_R:
+			return r / 255.f;
+		case COLOR_G:
+			return g / 255.f;
+		case COLOR_B:
+			return b / 255.f;
+		case COLOR_A:
+			return a / 255.f;
+		}
 	}
 
 	/* convert color to float array (in: 0 - 255, out: 0.0 - 1.0) */
-	std::array<float, 3U> Base() const
+	[[nodiscard]] std::array<float, 3U> Base() const
 	{
 		std::array<float, 3U> arrBaseColor = { };
 		arrBaseColor[COLOR_R] = this->Base<COLOR_R>();
@@ -136,12 +239,14 @@ public:
 		return arrBaseColor;
 	}
 
+	/* set color from float array (in: 0.0 - 1.0, out: 0 - 255) */
 	static Color FromBase3(float arrBase[3])
 	{
 		return Color(arrBase[0], arrBase[1], arrBase[2]);
 	}
 
-	std::array<float, 4U> BaseAlpha() const
+	/* convert color to float array w/ alpha (in: 0 - 255, out: 0.0 - 1.0) */
+	[[nodiscard]] std::array<float, 4U> BaseAlpha() const
 	{
 		std::array<float, 4U> arrBaseColor = { };
 		arrBaseColor[COLOR_R] = this->Base<COLOR_R>();
@@ -151,14 +256,15 @@ public:
 		return arrBaseColor;
 	}
 
+	/* set color from float array w/ alpha (in: 0.0 - 1.0, out: 0 - 255) */
 	static Color FromBase4(float arrBase[4])
 	{
 		return Color(arrBase[0], arrBase[1], arrBase[2], arrBase[3]);
 	}
 
-	float Hue() const
+	[[nodiscard]] float Hue() const
 	{
-		if (arrColor[COLOR_R] == arrColor[COLOR_G] && arrColor[COLOR_G] == arrColor[COLOR_B])
+		if (r == g && g == b)
 			return 0.f;
 
 		const float r = this->Base<COLOR_R>();
@@ -188,7 +294,7 @@ public:
 		return flHue / 360.f;
 	}
 
-	float Saturation() const
+	[[nodiscard]] float Saturation() const
 	{
 		const float r = this->Base<COLOR_R>();
 		const float g = this->Base<COLOR_G>();
@@ -203,7 +309,7 @@ public:
 		return flDelta / flMax;
 	}
 
-	float Brightness() const
+	[[nodiscard]] float Brightness() const
 	{
 		const float r = this->Base<COLOR_R>();
 		const float g = this->Base<COLOR_G>();
@@ -250,8 +356,7 @@ public:
 		return Color(r, g, b, flAlpha);
 	}
 
-private:
-	std::array<std::uint8_t, 4U> arrColor;
+	std::uint8_t r, g, b, a = 255;
 };
 
 class FloatColor {

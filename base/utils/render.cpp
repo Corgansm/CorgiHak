@@ -1,4 +1,7 @@
 #include "Render.h"
+#include <cstring>
+#include <iterator>
+#include <algorithm>
 
 void Render::CreateFonts( ) {
 	Interfaces::Surface->SetFontGlyphSet( Fonts::WeaponIcon = Interfaces::Surface->FontCreate( ), _( "undefeated" ), 12, FW_MEDIUM, NULL, NULL, FONTFLAG_ANTIALIAS | FONTFLAG_DROPSHADOW );
@@ -8,6 +11,8 @@ void Render::CreateFonts( ) {
 	Interfaces::Surface->SetFontGlyphSet( Fonts::Menu = Interfaces::Surface->FontCreate( ), _( "Tahoma" ), 13, FW_DONTCARE, NULL, NULL, FONTFLAG_DROPSHADOW );
 	Interfaces::Surface->SetFontGlyphSet( Fonts::Logs = Interfaces::Surface->FontCreate( ), _( "Tahoma" ), 11, FW_DONTCARE, NULL, NULL, NULL );
 	Interfaces::Surface->SetFontGlyphSet( Fonts::MenuTabs = Interfaces::Surface->FontCreate( ), _( "test2" ), 55, FW_NORMAL, NULL, NULL, FONTFLAG_DROPSHADOW | FONTFLAG_ANTIALIAS );
+	Interfaces::Surface->SetFontGlyphSet( Fonts::MenuTitle = Interfaces::Surface->FontCreate( ), _( "Verdana" ), 17, FW_BOLD, NULL, NULL, FONTFLAG_ANTIALIAS );
+	Interfaces::Surface->SetFontGlyphSet( Fonts::MenuBold = Interfaces::Surface->FontCreate( ), _( "Tahoma" ), 13, FW_BOLD, NULL, NULL, FONTFLAG_DROPSHADOW );
 	Interfaces::Surface->SetFontGlyphSet( Fonts::DamageMarker = Interfaces::Surface->FontCreate( ), _( "Verdana" ), 14, FW_NORMAL, NULL, NULL, FONTFLAG_DROPSHADOW | FONTFLAG_ANTIALIAS );
 }
 
@@ -235,13 +240,17 @@ void Render::Text( HFont font, int x, int y, Color color, DWORD alignment, const
 	if ( GlobalAlpha < 1.f )
 		color = color.Set<COLOR_A>( color.Get<COLOR_A>( ) * GlobalAlpha );
 
-	va_list va_alist;
-	char buf[ 1024 ];
-	va_start( va_alist, msg );
-	_vsnprintf_s( buf, sizeof( buf ), msg, va_alist );
-	va_end( va_alist );
-	wchar_t wbuf[ 1024 ];
-	MultiByteToWideChar( CP_UTF8, 0, buf, 256, wbuf, 256 );
+	if ( !msg )
+		return;
+
+	// drawn as is: the text used to go through printf, so a '%' in a player name, a log line or a lua string
+	// read garbage off the stack ( and could crash ); long strings were cut at 256 bytes without a terminator
+	wchar_t wbuf[ 1024 ]{ };
+	if ( MultiByteToWideChar( CP_UTF8, 0, msg, -1, wbuf, static_cast< int >( std::size( wbuf ) ) ) <= 0 ) {
+		// longer than the buffer ( or not utf-8 ): draw what fits
+		const int written{ MultiByteToWideChar( CP_UTF8, 0, msg, static_cast< int >( std::min< std::size_t >( std::strlen( msg ), std::size( wbuf ) - 1 ) ), wbuf, static_cast< int >( std::size( wbuf ) - 1 ) ) };
+		wbuf[ std::max( written, 0 ) ] = L'\0';
+	}
 
 	int w, h;
 
@@ -268,7 +277,7 @@ Vector2D Render::GetTextSize( std::string string, HFont font )
 	Vector2D rect;
 
 	wchar_t wbuf[ 1024 ];
-	if ( MultiByteToWideChar( CP_UTF8, 0, string.c_str( ), -1, wbuf, 256 ) > 0 ) {
+	if ( MultiByteToWideChar( CP_UTF8, 0, string.c_str( ), -1, wbuf, static_cast< int >( std::size( wbuf ) ) ) > 0 ) {
 		int x, y;
 		Interfaces::Surface->GetTextSize( font, wbuf, x, y );
 		rect.x = x;

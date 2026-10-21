@@ -428,6 +428,71 @@ MultiElement_t preferBaimMachine[ 3 ]{
 	{ &Config::Get<bool>( Vars.RagebotPreferBaimLethalMachine ), "Lethal" }
 };
 
+
+// prefer safe point ( per weapon group )
+MultiElement_t preferSafePistol[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafePistol ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalPistol ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirPistol ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissPistol ), "After miss" }
+};
+
+MultiElement_t preferSafeHeavyPistol[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeHeavyPistol ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalHeavyPistol ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirHeavyPistol ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissHeavyPistol ), "After miss" }
+};
+
+MultiElement_t preferSafeSMG[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeSMG ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalSMG ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirSMG ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissSMG ), "After miss" }
+};
+
+MultiElement_t preferSafeRifle[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeRifle ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalRifle ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirRifle ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissRifle ), "After miss" }
+};
+
+MultiElement_t preferSafeShotgun[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeShotgun ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalShotgun ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirShotgun ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissShotgun ), "After miss" }
+};
+
+MultiElement_t preferSafeAWP[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAWP ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalAWP ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirAWP ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissAWP ), "After miss" }
+};
+
+MultiElement_t preferSafeScout[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeScout ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalScout ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirScout ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissScout ), "After miss" }
+};
+
+MultiElement_t preferSafeAuto[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAuto ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalAuto ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirAuto ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissAuto ), "After miss" }
+};
+
+MultiElement_t preferSafeMachine[ 4 ]{
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeMachine ), "Always" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeLethalMachine ), "Lethal" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeInAirMachine ), "In air" },
+	{ &Config::Get<bool>( Vars.RagebotPreferSafeAfterMissMachine ), "After miss" }
+};
+
 ComboElement_t materials[ 5 ]{ _( "Regular" ), _( "Flat" ), _( "Glow" ), _( "Metallic" ), _( "Galaxy" ) };
 
 ComboElement_t comboElements[ 4 ]{ "rome", "from", "monebot", "$$$$" };

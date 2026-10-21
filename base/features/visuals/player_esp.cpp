@@ -1,5 +1,6 @@
 #include "visuals.h"
 #include "../animations/animation.h"
+#include "../../core/lua/lua_engine.h"
 
 void CPlayerESP::Main( CBasePlayer* ent ) {
 	int type{ ENEMY };
@@ -17,24 +18,33 @@ void CPlayerESP::Main( CBasePlayer* ent ) {
 	entry.type = type;
 	entry.ent = ent;
 
-	// reset stored health
-	if ( entry.health < std::min( ent->m_iHealth( ), 100 ) )
-		entry.health = std::min( ent->m_iHealth( ), 100 );
-
-	// animation
-	if ( entry.health > ent->m_iHealth( ) )
-		entry.health -= 6.f * Interfaces::Globals->flFrameTime * ( entry.health - ent->m_iHealth( ) );
-
-	if ( ent->Dormant( ) ) {
-		entry.Alpha -= Interfaces::Globals->flFrameTime / 5.f;
-		entry.DormancyFade += Interfaces::Globals->flFrameTime;
+	// health: the bar drains smoothly, and a lighter chunk shows the damage just taken before catching up
+	const float hp{ static_cast< float >( std::clamp( ent->m_iHealth( ), 0, 100 ) ) };
+	if ( entry.m_flHealth < 0.f || hp > entry.m_flHealth + 0.5f ) {
+		entry.m_flHealth = hp;
+		entry.m_flHealthTrail = hp;
 	}
 	else {
-		entry.Alpha += Interfaces::Globals->flFrameTime * 2.f;
-		entry.DormancyFade -= Interfaces::Globals->flFrameTime * 2.f;
-	}
+		if ( hp < entry.m_flHealth - 0.5f && entry.m_flHealthTrail <= entry.m_flHealth + 0.5f )
+			entry.m_flTrailDelay = 0.35f;
+		entry.m_flHealth = Anim::Approach( entry.m_flHealth, hp, 12.f );
 
-	entry.Alpha = std::clamp<float>( entry.Alpha, 0.f, 1.f );
+		entry.m_flTrailDelay = std::max( 0.f, entry.m_flTrailDelay - Anim::Dt( ) );
+		if ( entry.m_flTrailDelay <= 0.f )
+			entry.m_flHealthTrail = Anim::Approach( entry.m_flHealthTrail, entry.m_flHealth, 6.f );
+		entry.m_flHealthTrail = std::max( entry.m_flHealthTrail, entry.m_flHealth );
+	}
+	entry.health = static_cast< int >( std::round( entry.m_flHealth ) );
+
+	// fades: quick in, slow out while dormant ( shared easing )
+	entry.m_flFade = ent->Dormant( ) ? Anim::Step( entry.m_flFade, false, 5.f ) : Anim::Step( entry.m_flFade, true, 0.35f );
+	entry.Alpha = Anim::EaseOut( entry.m_flFade );
+
+	if ( ent->Dormant( ) )
+		entry.DormancyFade += Interfaces::Globals->flFrameTime;
+	else
+		entry.DormancyFade -= Interfaces::Globals->flFrameTime * 2.f;
+
 	entry.DormancyFade = std::clamp<float>( entry.DormancyFade, 0.f, 1.f );
 
 	DrawOOF( entry );
@@ -98,16 +108,27 @@ void CPlayerESP::DrawHealth( VisualPlayerEntry& entry ) {
 
 	const auto outline{ Color( 0, 0, 0, static_cast< int >( last.Get<COLOR_A>( ) ) ) };
 
-	const auto bar_height{ static_cast<int>( static_cast< float >( entry.health ) * static_cast< float >( entry.BBox.h ) / 100.0f ) };
+	const auto bar_height{ static_cast<int>( std::max( entry.m_flHealth, 0.f ) * static_cast< float >( entry.BBox.h ) / 100.0f ) };
 	const auto offset{ entry.BBox.h - bar_height };
 
-	Render::FilledRectangle( entry.BBox.x - 6, entry.BBox.y - 1, 4, entry.BBox.h + 2, outline.Set<COLOR_A>( outline.Get<COLOR_A>( ) * .5f ) );
-	Render::FilledRectangle( entry.BBox.x - 5, entry.BBox.y + offset, 2, bar_height, last );
+	// dark track, coloured fill with a lighter top, outline
+	Render::FilledRectangle( entry.BBox.x - 6, entry.BBox.y - 1, 4, entry.BBox.h + 2, outline.Set<COLOR_A>( outline.Get<COLOR_A>( ) * .6f ) );
+
+	// damage just taken: pale segment above the fill that shrinks after a short delay
+	const auto trail_height{ static_cast<int>( std::max( entry.m_flHealthTrail, 0.f ) * static_cast< float >( entry.BBox.h ) / 100.0f ) };
+	if ( trail_height > bar_height + 1 )
+		Render::FilledRectangle( entry.BBox.x - 5, entry.BBox.y + entry.BBox.h - trail_height, 2, trail_height - bar_height,
+			Color( 255, 255, 255, static_cast< int >( last.Get<COLOR_A>( ) * 0.55f ) ) );
+	if ( bar_height > 0 ) {
+		const Color white( 255, 255, 255, static_cast< int >( last.Get<COLOR_A>( ) ) );
+		const Color top{ last.Lerp( white, 0.25f ) };
+		Render::Gradient( static_cast< int >( entry.BBox.x - 5 ), static_cast< int >( entry.BBox.y + offset ), 2, static_cast< int >( bar_height ), top, last, false );
+	}
 
 	Render::Rectangle( entry.BBox.x - 6, entry.BBox.y - 1, 4, entry.BBox.h + 2, outline );
 	//Render::Text( Fonts::HealthESP, entry.BBox.x + entry.BBox.w + 15, entry.BBox.y, Color( 255, 255, 255 ).Set<COLOR_A>( last.Get<COLOR_A>( ) ), FONT_RIGHT, std::to_string( Features::AnimSys.m_arrEntries.at( entry.ent->Index( ) - 1 ).m_iLastChoked ).c_str( ) );
 
-	if ( entry.health <= 92 )
+	if ( entry.health < 100 )
 		Render::Text( Fonts::HealthESP, entry.BBox.x - 5, entry.BBox.y + offset - 3, Color( 255, 255, 255 ).Set<COLOR_A>( last.Get<COLOR_A>( ) ), FONT_CENTER, std::to_string( entry.health ).c_str( ) );
 }
 
@@ -122,8 +143,8 @@ bool CPlayerESP::DrawAmmo( VisualPlayerEntry& entry ) {
 	if ( !weapon )
 		return false;
 
-	if ( weapon->m_iItemDefinitionIndex( ) == WEAPON_C4 || weapon->m_iItemDefinitionIndex( ) == WEAPON_HEALTHSHOT || weapon->IsGrenade( ) || weapon->IsKnife( ) )
-		return false;
+	//if ( weapon->m_iItemDefinitionIndex( ) == WEAPON_C4 || weapon->m_iItemDefinitionIndex( ) == WEAPON_HEALTHSHOT || weapon->IsGrenade( ) || weapon->IsKnife( ) )
+		//return false;
 
 	const auto weapon_info = weapon->GetCSWeaponData( );
 	if ( !weapon_info )
@@ -135,18 +156,18 @@ bool CPlayerESP::DrawAmmo( VisualPlayerEntry& entry ) {
 	Color last;
 	GetPlayerColorFig( entry.type, VisAmmoCol, last )
 
-	last = last.Set<COLOR_A>( last.Get<COLOR_A>( ) * entry.Alpha );
-	last = last.Lerp( DormantCol.Set<COLOR_A>( last.Get<COLOR_A>( ) * 0.4f ), entry.DormancyFade );
+	//last = last.Set<COLOR_A>( last.Get<COLOR_A>( ) * entry.Alpha );
+	//last = last.Lerp( DormantCol.Set<COLOR_A>( last.Get<COLOR_A>( ) * 0.4f ), entry.DormancyFade );
 
 	const auto outline = Color( 0, 0, 0, static_cast< int >( last.Get<COLOR_A>( ) ) );
 
 	// outline
-	Render::FilledRectangle( entry.BBox.x - 1, entry.BBox.y + entry.BBox.h + 2,  entry.BBox.w + 2, 4, outline.Set<COLOR_A>( outline.Get<COLOR_A>( ) * .5f ) );
+	//Render::FilledRectangle( entry.BBox.x - 1, entry.BBox.y + entry.BBox.h + 2,  entry.BBox.w + 2, 4, outline.Set<COLOR_A>( outline.Get<COLOR_A>( ) * .5f ) );
 	// color
-	if ( ammo )
-		Render::FilledRectangle( entry.BBox.x, entry.BBox.y + entry.BBox.h + 3,  std::min( entry.BBox.w, ammo * entry.BBox.w / max_clip ), 2, last );
+	//if ( ammo )
+	//	Render::FilledRectangle( entry.BBox.x, entry.BBox.y + entry.BBox.h + 3,  std::min( entry.BBox.w, ammo * entry.BBox.w / max_clip ), 2, last );
 
-	Render::Rectangle( entry.BBox.x - 1, entry.BBox.y + entry.BBox.h + 2, entry.BBox.w + 2, 4, outline );
+	//Render::Rectangle( entry.BBox.x - 1, entry.BBox.y + entry.BBox.h + 2, entry.BBox.w + 2, 4, outline );
 
 	return true;
 }
@@ -229,8 +250,37 @@ void CPlayerESP::DrawFlags( VisualPlayerEntry& entry ) {
 	}
 
 	CheckIfPlayer( VisFlagBLC, entry.type ) {
-		if ( !Features::AnimSys.m_arrEntries.at( entry.ent->Index( ) - 1 ).m_bRecordAdded )
-			flags.push_back( std::make_pair( _( "EXPLOIT" ), Color( 255, 158, 97 ) ) );
+		const auto& brain{ Features::Ragebot.m_cBrain.Get( entry.ent->Index( ) ) };
+		if ( brain.m_bDefensive )
+			flags.push_back( std::make_pair( _( "DEFENSIVE" ), Color( 255, 158, 97 ) ) );
+		else if ( brain.m_bDefensiveUser )
+			flags.push_back( std::make_pair( _( "DEF" ), Color( 255, 205, 160 ) ) );
+
+		if ( brain.m_bFlicker )
+			flags.push_back( std::make_pair( _( "FLICK" ), Color( 160, 200, 255 ) ) );
+
+		// defensive profile: what they flick to inside shifts, and how often they shift
+		if ( brain.m_bDefensiveUser && brain.m_iDefYawSamples >= 3 ) {
+			const int pitchMost{ std::max( { brain.m_iDefPitchUp, brain.m_iDefPitchZero, brain.m_iDefPitchDown } ) };
+			const char* pitch{ pitchMost == brain.m_iDefPitchUp ? "UP" : pitchMost == brain.m_iDefPitchZero ? "ZERO" : "DOWN" };
+			std::string profile{ std::string( pitch ) + " " + std::to_string( static_cast< int >( brain.m_flDefYawOffset ) ) };
+			if ( brain.m_flShiftInterval > 0.f )
+				profile += " /" + std::to_string( static_cast< int >( brain.m_flShiftInterval ) ) + "t";
+			flags.push_back( std::make_pair( profile, Color( 200, 200, 200 ) ) );
+		}
+	}
+
+	// defensive detector readout: drops seen, then what each was classed as, last drop size ( * = had defensive angles )
+	if ( Config::Get<bool>( Vars.RagebotDefDebug ) && entry.ent && !entry.ent->IsTeammate( ) ) {
+		const auto& brain{ Features::Ragebot.m_cBrain.Get( entry.ent->Index( ) ) };
+		flags.push_back( std::make_pair( "drops " + std::to_string( brain.m_iDbgShifts ) + " def " + std::to_string( brain.m_iDbgDefensive )
+			+ " push " + std::to_string( brain.m_iDbgPushed ),
+			Color( 255, 205, 160 ) ) );
+		flags.push_back( std::make_pair( "dt " + std::to_string( brain.m_iDbgDoubletap ) + " sz " + std::to_string( brain.m_iDbgSize )
+			+ " net " + std::to_string( brain.m_iDbgNetwork ) + " sim " + std::to_string( brain.m_iDbgSimultaneous )
+			+ " ang " + std::to_string( brain.m_iDbgNoAngles ), Color( 190, 190, 200 ) ) );
+		if ( brain.m_iDbgShifts > 0 )
+			flags.push_back( std::make_pair( "last " + std::to_string( brain.m_iDbgLastShift ) + "t" + ( brain.m_bDbgLastAngles ? "*" : "" ), Color( 190, 190, 200 ) ) );
 	}
 
 	CheckIfPlayer( VisFlagC4, entry.type ) {
@@ -258,6 +308,42 @@ void CPlayerESP::DrawFlags( VisualPlayerEntry& entry ) {
 	CheckIfPlayer( VisFlagScoped, entry.type ) {
 		if ( entry.ent->m_bIsScoped( ) )
 			flags.push_back( std::make_pair( _( "SCOPED" ), Color( 255, 255, 255 ) ) );
+	}
+
+	// client.register_esp_flag
+	Lua::AppendEspFlags( entry.ent, flags );
+
+	// ragebot debug overlay: what the aimbot decided for this enemy on its last pass
+	if ( Config::Get<bool>( Vars.RagebotDebugOverlay ) && entry.type == ENEMY ) {
+		const auto& debug{ Features::Ragebot.Debug( entry.ent->Index( ) ) };
+		if ( debug.m_iTick >= 0 && Interfaces::Globals->iTickCount - debug.m_iTick <= 8 ) {
+			Color statusColor{ 200, 200, 200 };
+			if ( debug.m_bFired )
+				statusColor = Color( 120, 255, 120 );
+			else if ( debug.m_bTarget )
+				statusColor = Color( 255, 214, 153 );
+			else if ( debug.m_strStatus != "OK" )
+				statusColor = Color( 255, 120, 110 );
+
+			// strip format characters: Render::Text treats the text as a format string
+			std::string status{ debug.m_strStatus };
+			status.erase( std::remove( status.begin( ), status.end( ), '%' ), status.end( ) );
+			flags.push_back( std::make_pair( ( debug.m_bTarget ? std::string( "> " ) : std::string( ) ) + status, statusColor ) );
+
+			if ( debug.m_iRecordAge >= 0 ) {
+				const int limit{ TIME_TO_TICKS( 0.2f ) };
+				std::string record{ "rec " + std::to_string( debug.m_iRecordAge ) + "/" + std::to_string( limit ) + "t" };
+				if ( !debug.m_iValidity )
+					record += " expired";
+				flags.push_back( std::make_pair( record, debug.m_iValidity ? Color( 200, 200, 200 ) : Color( 255, 120, 110 ) ) );
+			}
+
+			if ( debug.m_bExtrapolated )
+				flags.push_back( std::make_pair( "ex +" + std::to_string( debug.m_iExtrapTicks ) + "t / " + std::to_string( debug.m_iSpread ) + "u", Color( 160, 200, 255 ) ) );
+
+			if ( debug.m_iDamage > 0 )
+				flags.push_back( std::make_pair( "dmg " + std::to_string( debug.m_iDamage ), Color( 200, 200, 200 ) ) );
+		}
 	}
 
 	int i{ };
@@ -343,13 +429,14 @@ void CPlayerESP::DrawOOF( VisualPlayerEntry& entry ) {
 
 	QAngle viewAngles{ ctx.m_angOriginalViewangles };
 
-	static int width{ static_cast<int>( ctx.m_ve2ScreenSize.x ) }, height{ static_cast< int >( ctx.m_ve2ScreenSize.y ) };
+	// read every frame so a resolution change moves the arrows too
+	const int width{ static_cast<int>( ctx.m_ve2ScreenSize.x ) }, height{ static_cast< int >( ctx.m_ve2ScreenSize.y ) };
 
 	const auto screenCenter{ Vector2D( width * 0.5f, height * 0.5f ) };
 	const auto angleYawRad{ DEG2RAD( viewAngles.y - Math::CalcAngle( ctx.m_vecEyePos, entry.ent->GetAbsOrigin( ) ).y - 90.0f ) };
 
 	constexpr auto radius{ 20 };
-	constexpr auto size{ 15 };
+	constexpr auto size{ 10 };
 
 	const auto newPointX{ screenCenter.x + ( ( ( ( width - ( size * 3 ) ) * 0.5f ) * ( radius / 100.0f ) ) * cos( angleYawRad ) ) + ( int )( 6.0f * ( ( ( float )size - 4.0f ) / 16.0f ) ) };
 	const auto newPointY{ screenCenter.y + ( ( ( ( height - ( size * 3 ) ) * 0.5f ) * ( radius / 100.0f ) ) * sin( angleYawRad ) ) };
@@ -364,7 +451,9 @@ void CPlayerESP::DrawOOF( VisualPlayerEntry& entry ) {
 	RotateTriangle( points, viewAngles.y - Math::CalcAngle( ctx.m_vecEyePos, entry.ent->GetAbsOrigin( ) ).y - 90.0f );
 
 
-	Render::Triangle( points.at( 0 ), points.at( 1 ), points.at( 2 ), last.Set<COLOR_A>( last.Get<COLOR_A>( ) / 4 ) );
+	// breathing fill + solid outline
+	const auto pulse{ 0.35f + 0.25f * std::sin( Interfaces::Globals->flRealTime * 4.f ) };
+	MenuDraw::ConvexPolygon( { points.at( 0 ), points.at( 1 ), points.at( 2 ) }, last.Set<COLOR_A>( last.Get<COLOR_A>( ) * pulse ) );
 	Render::Line( points.at( 0 ), points.at( 1 ), last );
 	Render::Line( points.at( 1 ), points.at( 2 ), last );
 	Render::Line( points.at( 2 ), points.at( 0 ), last );

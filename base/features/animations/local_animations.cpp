@@ -7,11 +7,9 @@ void CAnimationSys::UpdateLocal( QAngle viewAngles, const bool onlyAnimState, CU
 
 	const auto backupCurTime{ Interfaces::Globals->flCurTime };
 	const auto backupFrameTime{ Interfaces::Globals->flFrameTime };
-	const auto backupHLTV{ Interfaces::ClientState->bIsHLTV };
 
 	Interfaces::Globals->flCurTime = TICKS_TO_TIME( ctx.m_pLocal->m_nTickBase( ) );
 	Interfaces::Globals->flFrameTime = Interfaces::Globals->flIntervalPerTick;
-	Interfaces::ClientState->bIsHLTV = true;
 
 	Interfaces::Prediction->SetLocalViewAngles( viewAngles );
 
@@ -27,7 +25,6 @@ void CAnimationSys::UpdateLocal( QAngle viewAngles, const bool onlyAnimState, CU
 
 	Interfaces::Globals->flCurTime = backupCurTime;
 	Interfaces::Globals->flFrameTime = backupFrameTime;
-	Interfaces::ClientState->bIsHLTV = backupHLTV;
 }
 
 constexpr float CSGO_ANIM_LOWER_REALIGN_DELAY{ 1.1f };

@@ -8,12 +8,16 @@ class CMenuItem {
 public:
 	CMenuItem( const char* name, float* value, float min, float max, int width, std::function<bool( )> show )
 		: m_szName( name ), m_pValue( value ), m_eItemType( SLIDER_FLOAT ), m_fnShow( show ) {
-		m_pArgs = new SliderArgs_t( min, max, width );
+		const auto args{ new SliderArgs_t( min, max, width ) };
+		args->m_flDefault = value ? *value : min;
+		m_pArgs = args;
 	};
 
 	CMenuItem( const char* name, int* value, float min, float max, int width, std::function<bool( )> show )
 		: m_szName( name ), m_pValue( value ), m_eItemType( SLIDER_INT ), m_fnShow( show ) {
-		m_pArgs = new SliderArgs_t( min, max, width );
+		const auto args{ new SliderArgs_t( min, max, width ) };
+		args->m_flDefault = value ? static_cast< float >( *value ) : min;
+		m_pArgs = args;
 	};	
 	
 	CMenuItem( const char* name, int* value, int size, ComboElement_t* args, std::function<bool( )> show )
@@ -70,6 +74,12 @@ public:
 
 	//float m_flAnimation{ };
 	Color m_cColor{ };
+
+	// hover glow ( menu polish ): animation and the control's rectangle from the last frame
+	float m_flHover{ };
+	float m_flToggle{ };        // checkbox mark fade
+	Vector2D m_vecGlowPos{ };
+	Vector2D m_vecGlowSize{ };
 	const char* m_szName{ };
 
 	std::function<bool( )> m_fnShow;
@@ -77,6 +87,7 @@ public:
 	void Render( );
 	void RenderFocus( );
 private:
+	void RenderControl( );
 	void Checkbox( );
 	void Label( );
 	void Listbox( );
@@ -149,6 +160,17 @@ public:
 	void Render( int groupNum, std::vector < CMenuGroup >& groups );
 	void Reset( );
 
+	const char* Name( ) const { return m_szName; }
+
+	bool Owns( const CMenuItem* item ) const {
+		return item && !m_vecItems.empty( ) && item >= &m_vecItems.front( ) && item <= &m_vecItems.back( );
+	}
+
+	// lua scripts rebuild their groups at runtime
+	std::vector< CMenuItem >& Items( ) {
+		return m_vecItems;
+	}
+
 	/*bool NewLine( ) {
 		return Menu::m_vecDrawPos.x - Menu::m_vecPos.x + MARGIN * 2 + m_vecSize.x > Menu::m_vecSize.x;
 	}*/
@@ -159,6 +181,7 @@ private:
 	const char* m_szName{ };
 	float m_flPercent;
 	float m_flScroll{ };
+	float m_flScrollTarget{ };   // wheel / search set this, m_flScroll glides to it
 };
 
 

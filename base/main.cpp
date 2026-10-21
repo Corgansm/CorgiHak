@@ -4,117 +4,114 @@
 #include "utils/math.h"
 #include "utils/render.h"
 #include "utils/crash_dumper.h"
+#include "utils/crash_log.h"
 #include "core/prop_manager.h"
 #include "core/config.h"
 #include "core/hooks.h"
 #include "core/menu rework/menu.h"
 #include "core/displacement.h"
 #include "core/event_listener.h"
+#include "core/lua/lua_engine.h"
 #include "features/misc/logger.h"
 #include "features/misc/skinchanger/kitparser.h"
 #include <tchar.h>
 
-__forceinline void memsetINLINED( unsigned char* dest, char src, size_t size ) {
-	for ( size_t i = 0; i < size; ++i ) {
-		dest[ i ] = src;
-	}
-}
-
-__forceinline void XORBlock( unsigned char* dest, char src, size_t size ) {
-	for ( size_t i = 0; i < size; ++i ) {
-		dest[ i ] ^= src;
-	}
-}
-
-__forceinline void eraseFunction( size_t startOf, size_t endFunction ) {
-#ifndef _DEBUG
-	auto sizeOf{ endFunction - startOf };
-	DWORD oldProt{ };
-
-	VirtualProtect( ( LPVOID ) startOf, sizeOf, PAGE_READWRITE, &oldProt );
-	memsetINLINED( ( unsigned char* ) startOf, 0, sizeOf );
-	VirtualProtect( ( LPVOID ) startOf, sizeOf, oldProt, &oldProt );
-#endif // !_DEBUG
-}
-
 FILE* pStream;
 
-void Entry( void* netvars ) {
-	//SetUnhandledExceptionFilter( UnhandledExFilter );
+// our own module, freed after unloading so a new build can be injected into the same game
+HMODULE g_hModule{ };
 
+namespace {
+	// END while the game window has focus unloads ( same as the menu button )
+	bool UnloadKeyPressed( ) {
+		if ( !( GetAsyncKeyState( VK_END ) & 0x8000 ) )
+			return false;
+
+		DWORD process{ };
+		GetWindowThreadProcessId( GetForegroundWindow( ), &process );
+		return process == GetCurrentProcessId( );
+	}
+
+	// true only for a module the windows loader knows ( LoadLibrary injection ), never for a manually mapped image
+	bool LoadedByWindows( HMODULE module ) {
+		wchar_t path[ MAX_PATH ]{ };
+		return module && GetModuleFileNameW( module, path, MAX_PATH ) != 0;
+	}
+}
+
+void Entry( void* netvars )
+{
 	while ( !MEM::GetModuleBaseHandle( SERVERBROWSER_DLL ) )
 		std::this_thread::sleep_for( 200ms );
 
-	// interfaces
-	bool end{ !Interfaces::Setup( ) };
-	eraseFunction( reinterpret_cast< size_t >( Interfaces::Setup ), reinterpret_cast< size_t >( Interfaces::CheckInterfaces ) );
-	if ( end )
+	CrashLog::Info( "waiting done, setting up interfaces" );
+	if (!Interfaces::Setup()) {
+		CrashLog::Info( "FAILED: Interfaces::Setup" );
 		return;
+	}
 
-	//initialize_kits( );
-
+	CrashLog::Info( "interfaces ok, registering menu" );
 	Menu::Register( );
-	// WAHAAHHAHAHAHAHAHHAHA
-	eraseFunction( reinterpret_cast< size_t >( Menu::Register ), reinterpret_cast< size_t >( Menu::LerpToCol ) );
-
+	CrashLog::Info( "menu ok, config setup" );
 	Config::Setup( );
+	Menu::LoadState( );
 
 	Interfaces::GameConsole->Clear( );
 
-	// netvar
-	if ( !PropManager::Get( ).Create( ) )
+	CrashLog::Info( "config ok, prop manager" );
+	if ( !PropManager::Get( ).Create( ) ) {
+		CrashLog::Info( "FAILED: PropManager" );
 		return;
+	}
 
 	Displacement::Init( netvars );
-	eraseFunction( reinterpret_cast< size_t >( Displacement::Init ), reinterpret_cast< size_t >( Displacement::FindInDataMap ) );
+	CrashLog::Info( "displacement ok" );
 
-	// math exports
-	end = !Math::Setup( );
-	eraseFunction( reinterpret_cast< size_t >( Math::Setup ), reinterpret_cast< size_t >( Math::Stub ) );
-	if ( end )
+	// start with the config that was active last time ( survives a reinject )
+	const auto lastConfig{ Config::LoadLast( ) };
+	if ( lastConfig.empty( ) )
+		CrashLog::Info( "no last config, defaults" );
+	else
+		CrashLog::Info( "loaded last config %s", lastConfig.c_str( ) );
+
+	if (!Math::Setup()) {
+		CrashLog::Info( "FAILED: Math::Setup" );
 		return;
+	}
 	
 	Render::CreateFonts( );
 	EventListener.Setup( { _( "bullet_impact" ), _( "round_start" ), _( "player_hurt" ),_( "weapon_fire" ), _( "player_death" ) } );
 
-	// hook da funcs
-	end = !Hooks::Setup( );
-	eraseFunction( reinterpret_cast< size_t >( Hooks::Setup ), reinterpret_cast< size_t >( Hooks::Restore ) );
-	if ( end )
+	CrashLog::Info( "fonts + events ok, hooking" );
+	if (!Hooks::Setup()) {
+		CrashLog::Info( "FAILED: Hooks::Setup" );
 		return;
+	}
+	CrashLog::Info( "hooks ok, running" );
 
-	long long amongus = 0x69690004C201B0;
-	for ( auto& mod : { CLIENT_DLL, ENGINE_DLL, STUDIORENDER_DLL, MATERIALSYSTEM_DLL } )
-		WriteProcessMemory( GetCurrentProcess( ), ( LPVOID ) MEM::FindPattern( mod, "55 8B EC 56 8B F1 33 C0 57 8B 7D 08" ), &amongus, 5, 0 );
+	Features::Logger.Log( _( "Deployed CorgiHak." ), true );
 
-	const auto setupVelocityClamp{ MEM::FindPattern( CLIENT_DLL, _( "0F 2F 15 ? ? ? ? 0F 86 ? ? ? ? F3 0F 7E 4C 24" ) ) + 0x3 };
-	auto p{ *reinterpret_cast< float** >( setupVelocityClamp ) };
-	DWORD old{ };
-	VirtualProtect( ( LPVOID ) p, 4, PAGE_READWRITE, &old );
-	*p = FLT_MAX;
-	VirtualProtect( ( LPVOID ) p, 4, old, &old );
+	// what this injection is running: tells a fresh build apart from the old one after a reinject
+	Features::Logger.Log( std::string( "build " __DATE__ " " __TIME__ ) + " | config: "
+		+ ( lastConfig.empty( ) ? std::string( "defaults" ) : lastConfig ), true );
+	{
+		const auto scripts{ Lua::AutoloadSummary( ) };
+		Features::Logger.Log( "auto-loading scripts: " + ( scripts.empty( ) ? std::string( "none" ) : scripts ), true );
+	}
 
-	_MM_SET_FLUSH_ZERO_MODE( _MM_FLUSH_ZERO_ON );
-	_MM_SET_DENORMALS_ZERO_MODE( _MM_DENORMALS_ZERO_ON );
+	while ( !ctx.m_bUnload ) {
+		if ( UnloadKeyPressed( ) )
+			ctx.m_bUnload = true;
+		std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+	}
 
-	SetPriorityClass( GetCurrentProcess( ), HIGH_PRIORITY_CLASS );
-
-	Features::Logger.Log( _( "Deployed Havoc." ), true );
-
-
-	while ( !ctx.m_bUnload )
-		std::this_thread::sleep_for( std::chrono::milliseconds( 200 ) );
-
-	// restore hooks
+	CrashLog::Info( "unloading" );
 	Hooks::Restore( );
-
 	EventListener.Destroy( );
 
-	for ( int i{ 1 }; i < 64; ++i ) {
-		const auto player{ static_cast< CBasePlayer* >( Interfaces::ClientEntityList->GetClientEntity( i ) ) };
-		if ( player )
-			player->m_bClientSideAnimation( ) = true;
-	}
+	// hooks are gone, give the game thread a moment to leave any lua callback before the states close
+	std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+	Lua::Shutdown( );
 
 #ifndef _RELEASE
 	delete Displacement::Netvars;
@@ -123,13 +120,21 @@ void Entry( void* netvars ) {
 	if ( netvars )
 		delete netvars;
 
-	//FreeLibraryAndExitThread( bundle->module, EXIT_SUCCESS );
+	CrashLog::Shutdown( );
+
+	// let every game thread leave our code ( a hook that was already running when we restored them ),
+	// then free the dll: the file is unlocked for the next build and a fresh injection runs DllMain again
+	std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
+	if ( LoadedByWindows( g_hModule ) )
+		FreeLibraryAndExitThread( g_hModule, 0 );
 }
 
 BOOL APIENTRY DllMain( HMODULE hModule, DWORD dwReason, LPVOID lpReserved )
 {
 	if ( dwReason == DLL_PROCESS_ATTACH ) {
 		DisableThreadLibraryCalls( hModule );
+		g_hModule = hModule;
+		CrashLog::Init( hModule );
 
 		// welcome to artiehack/timhack/ETHEREAL/havoc AKA BEST HVH CHEAT
 		if ( const HANDLE hThread = ::CreateThread( nullptr, 0U, LPTHREAD_START_ROUTINE( Entry ), lpReserved, 0UL, nullptr ); hThread != nullptr )

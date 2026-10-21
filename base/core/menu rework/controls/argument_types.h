@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 
 enum EItemType {
 	CHECKBOX,
@@ -21,6 +22,8 @@ struct SliderArgs_t {
 	float m_flMin{ };
 	float m_flMax{ };
 	float m_flValue{ };
+	float m_flDefault{ };       // value at registration ( before any config loads ), right click resets to it
+	float m_flRepeat{ };        // arrow key auto repeat timer
 
 	int m_iMaxGroups{ };
 };
@@ -83,6 +86,8 @@ struct ButtonArgs_t {
 
 	float m_flTimer{ };
 	void* m_pCallback{ };
+	// set by lua script buttons: runs on a single click, no confirmation
+	std::function< void( ) > m_fnCallback{ };
 	const char* m_szName{ };
 	int m_iMaxGroups{ };
 	bool m_bDown{ };

@@ -1,5 +1,6 @@
 ﻿#include "misc.h"
 #include "../rage/ragebot.h"
+#include "../rage/antiaim.h"
 #include "../../utils/threading/thread_pool.hpp"
 
 void CMisc::Movement( CUserCmd& cmd ) {
@@ -214,7 +215,7 @@ void CMisc::MoveMINTFix( CUserCmd& cmd, QAngle wish_angles, int flags, int move_
 
 bool CMisc::MicroMove( CUserCmd& cmd ) {
 	if ( !Config::Get<bool>( Vars.AntiaimEnable )
-		|| !Config::Get<bool>( Vars.AntiaimDesync )
+		|| !Features::Antiaim.DesyncActive( )
 		|| cmd.iButtons & IN_JUMP
 		|| !( ctx.m_pLocal->m_fFlags( ) & FL_ONGROUND ) )
 		return false;
@@ -477,17 +478,17 @@ void CMisc::Thirdperson( ) {
 
 #include "../visuals/visuals.h"
 
-bool CMisc::InPeek( CUserCmd& cmd ) {
+bool CMisc::InPeek( CUserCmd& cmd )
+{
 	matrix3x4_t backupMatrix[ 256 ];
-	std::memcpy( backupMatrix, ctx.m_pLocal->m_CachedBoneData( ).Base( ), ctx.m_pLocal->m_iBoneCount( ) * sizeof( matrix3x4_t ) );
+	std::memcpy( backupMatrix, ctx.m_pLocal->m_CachedBoneData( ).Base( ), ctx.m_pLocal->m_CachedBoneData().Size() * sizeof( matrix3x4_t ) );
 
 	auto& prevLocalData{ ctx.m_cLocalData.at( ( cmd.iCommandNumber - 1 ) % 150 ) };
 
 	ExtrapolationBackup_t backupExtrapolationData{ ctx.m_pLocal };
 
-	if ( ctx.m_pLocal->m_vecVelocity( ).Length( ) > 2.f ) {
+	if ( ctx.m_pLocal->m_vecVelocity( ).Length( ) > 2.f )
 		Features::Ragebot.ExtrapolatePlayer( ctx.m_pLocal, ctx.m_flFixedCurtime, 3, cmd.viewAngles, prevLocalData.PredictedNetvars.m_vecVelocity, true );
-	}
 
 	Features::AnimSys.SetupBonesRebuilt( ctx.m_pLocal, ( matrix3x4a_t* )( ctx.m_pLocal->m_CachedBoneData( ).Base( ) ), 
 		BONE_USED_BY_HITBOX, ctx.m_flFixedCurtime, true );
@@ -495,10 +496,10 @@ bool CMisc::InPeek( CUserCmd& cmd ) {
 	const auto hitboxSet{ ctx.m_pLocal->m_pStudioHdr( )->pStudioHdr->GetHitboxSet( ctx.m_pLocal->m_nHitboxSet( ) ) };
 
 	bool damageable{ };
-
 	std::vector<CBasePlayer*> enemies{ };
 
-	for ( auto i = 1; i < 64; ++i ) {
+	for ( auto i = 1; i < 64; ++i )
+	{
 		const auto player{ static_cast< CBasePlayer* >( Interfaces::ClientEntityList->GetClientEntity( i ) ) };
 		if ( !player
 			|| !player->IsPlayer( )
@@ -515,11 +516,13 @@ bool CMisc::InPeek( CUserCmd& cmd ) {
 	auto orig = ctx.m_pLocal->GetAbsOrigin( );
 	std::sort( enemies.begin( ), enemies.end( ), [ orig ]( CBasePlayer* pl, CBasePlayer* pl0 ) { return orig.DistTo( pl->m_vecOrigin( ) ) < orig.DistTo( pl0->m_vecOrigin( ) ); } );
 
-	for ( auto& player : enemies ) {
+	for ( auto& player : enemies )
+	{
 		auto enemyShootPos{ player->m_vecOrigin( ) };
 		enemyShootPos.z += ( player->m_fFlags( ) & FL_DUCKING ) ? 46.f : 64.f;
 
-		for ( const auto& hb : { HITBOX_CHEST, HITBOX_RIGHT_UPPER_ARM, HITBOX_LEFT_UPPER_ARM, HITBOX_RIGHT_FOOT, HITBOX_LEFT_FOOT } ) {//HITBOX_RIGHT_THIGH, HITBOX_LEFT_THIGH
+		for ( const auto& hb : { HITBOX_CHEST, HITBOX_RIGHT_UPPER_ARM, HITBOX_LEFT_UPPER_ARM, HITBOX_RIGHT_FOOT, HITBOX_LEFT_FOOT } ) 
+		{
 			const auto hitbox{ hitboxSet->GetHitbox( hb ) };
 			if ( !hitbox )
 				continue;
@@ -530,7 +533,8 @@ bool CMisc::InPeek( CUserCmd& cmd ) {
 			const auto data{ Features::Autowall.FireBullet( player, ctx.m_pLocal, player->GetWeapon( )->GetCSWeaponData( ),
 				player->GetWeapon( )->m_iItemDefinitionIndex( ) == WEAPON_TASER, enemyShootPos, center, true ) };
 
-			if ( data.dmg > 0 ) {
+			if ( data.dmg > 0 )
+			{
 				damageable = true;
 				break;
 			}
@@ -542,13 +546,13 @@ bool CMisc::InPeek( CUserCmd& cmd ) {
 
 	backupExtrapolationData.restore( ctx.m_pLocal );
 
-	//if ( damageable ) {
-	//	if ( std::abs( cmd.iCommandNumber - ctx.m_iLastPeekCmdNum ) > 15 )
-	//		Features::Visuals.Chams.AddHitmatrix( ctx.m_pLocal, ctx.m_pLocal->m_CachedBoneData( ).Base( ) );
-	//}
+	if ( damageable )
+	{
+		if ( std::abs( cmd.iCommandNumber - ctx.m_iLastPeekCmdNum ) > 15 )
+			Features::Visuals.Chams.AddHitmatrix( ctx.m_pLocal, ctx.m_pLocal->m_CachedBoneData( ).Base( ) );
+	}
 
 	memcpy( ctx.m_pLocal->m_CachedBoneData( ).Base( ), backupMatrix, ctx.m_pLocal->m_CachedBoneData( ).Count( ) * sizeof( matrix3x4_t ) );
-
 	return damageable;
 }
 

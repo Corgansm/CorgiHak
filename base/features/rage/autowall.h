@@ -13,6 +13,8 @@ struct PenetrationData {
 	float dmg{ -1.f };
 	int hitgroup{ -1 };
 	int hitbox { -1 };
+	// an exit point had to be guessed ( a "breakable" with no exit found was assumed broken ): the damage is a guess
+	bool guessedExit{ };
 };
 
 class CAutowall {

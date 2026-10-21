@@ -92,16 +92,12 @@ struct HAVOCCTX {
 	CWeaponCSBase* m_pWeapon{ };
 	CCSWeaponData* m_pWeaponData{ };
 
-	//EClientFrameStage m_iLastFSNStage{ };
-
 	matrix3x4a_t m_matRealLocalBones[ 256 ];
-
 	FakeAnimData_t m_cFakeData{ };
 
 	QAngle m_angOriginalViewangles{ };
 
 	Vector m_vecEyePos{ };
-
 	Vector m_vecSetupBonesOrigin{ };
 
 	std::array< LocalData_t, MULTIPLAYER_BACKUP > m_cLocalData{ };
@@ -109,16 +105,12 @@ struct HAVOCCTX {
 	std::vector<int> m_iSentCmds{ };
 	std::vector<std::shared_ptr< std::string > > m_strDbgLogs{ };
 
-	//std::vector<std::pair<QAngle, int>> m_pQueuedCommands{ };
-
 	CAnimationLayer m_pAnimationLayers[ 13 ];
 
 	bool m_bCanShoot{ };
 	bool m_bCanPenetrate{ };
-	//bool m_bSetupBones{ };
 	bool m_bFakeDucking{ };
 	bool m_bSendPacket{ };
-	//bool m_bNewPacket{ };
 	bool m_bClearKillfeed{ };
 	bool m_bExploitsEnabled{ };
 	bool m_bRevolverCanShoot{ };
@@ -130,14 +122,9 @@ struct HAVOCCTX {
 	bool m_bProhibitSounds{ };
 	bool m_bUnload{ };
 	bool m_bExtrapolating{ };
-	//bool m_bSpawningCmds{ };
-	//bool m_bReadPackets{ };
-	//bool m_bRepredict{ };
-	//bool m_bCollisionForced{ };
 
 	int m_iLastPeekCmdNum{ };
 	int m_iTicksAllowed{ };
-	//int m_iLastSentCmdNumber{ };
 	int m_iLastShotNumber{ };
 	int m_iPenetrationDamage{ };
 	int m_iBombCarrier{ };
@@ -145,12 +132,10 @@ struct HAVOCCTX {
 	int m_iLast4Deltas[ 4 ]{ };
 
 	int m_iRageRecordPerfTimer{ };
-	//int m_iRageScanTargetsPerfTimer{ };
 	int m_iAnimsysPerfTimer{ };
 
 	uint8_t m_iLastID{ };
 
-	float m_flLastAnimTimeUpdate{ };
 	float m_iLastStopTime{ };
 	float m_flOutLatency{ };
 	int m_iRealOutLatencyTicks{ };
@@ -158,20 +143,20 @@ struct HAVOCCTX {
 	float m_flLerpTime{ };
 	float m_flFixedCurtime{ };
 
-	FORCEINLINE void GetLocal( ) {
-		if ( !Interfaces::Engine->IsInGame( ) || !Interfaces::Engine->IsConnected( ) ) {
+	FORCEINLINE void GetLocal( )
+	{
+		if ( !Interfaces::Engine->IsInGame( ) || !Interfaces::Engine->IsConnected( ) ) 
+		{
 			m_pLocal = nullptr;
 			return;
 		}
 
 		m_pLocal = static_cast< CBasePlayer * >( Interfaces::ClientEntityList->GetClientEntity( Interfaces::Engine->GetLocalPlayer( ) ) );
-
-		//return *reinterpret_cast< CBasePlayer** >( Displacement::Sigs.LocalPlayer );
 	};
 
-	FORCEINLINE int CalcCorrectionTicks( ) {
-		return Interfaces::Globals->nMaxClients == 1
-			? -1 : TIME_TO_TICKS( std::clamp<float>( Displacement::Cvars.sv_clockcorrection_msecs->GetFloat( ) / 1000.f, 0.f, 1.f ) );
+	FORCEINLINE int CalcCorrectionTicks( )
+	{
+		return Interfaces::Globals->nMaxClients == 1 ? -1 : TIME_TO_TICKS( std::clamp<float>( Displacement::Cvars.sv_clockcorrection_msecs->GetFloat( ) / 1000.f, 0.f, 1.f ) );
 	}
 };
 inline HAVOCCTX ctx;

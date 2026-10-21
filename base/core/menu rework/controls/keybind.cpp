@@ -25,34 +25,54 @@ const char* keys[ ] = { "[-]", "[M1]", "[M2]", "[BRK]", "[M3]", "[M4]", "[M5]",
 "[_]", "[_]", "[_]", "[_]", "[_]", "[_]", "[_]", "[_]", "[_]",
 "[_]", "[_]" };
 
-#define MAX_ALPHA( col ) col.Set<COLOR_A>( Menu::m_pFocusItem.m_flFocusAnim * 255 )
-
 ComboElement_t items[ 4 ]{ _( "Always on" ),_( "Toggle" ), _( "Hold" ), _( "Off hotkey" ) };
+
+namespace {
+	// "[M1]" -> "M1", "[-]" -> "none"
+	std::string KeyDisplayName( int key ) {
+		if ( key <= 0 || key >= static_cast< int >( sizeof( keys ) / sizeof( keys[ 0 ] ) ) )
+			return _( "none" );
+
+		std::string name{ keys[ key ] };
+		if ( name.size( ) > 2 && name.front( ) == '[' && name.back( ) == ']' )
+			name = name.substr( 1, name.size( ) - 2 );
+
+		if ( name == "-" || name == "_" )
+			return _( "none" );
+
+		return name;
+	}
+}
+
+std::string Menu::KeyName( int key ) {
+	return KeyDisplayName( key );
+}
 
 void CMenuItem::KeybindFocus( ) {
 	auto& value{ *reinterpret_cast< keybind_t* >( m_pValue ) };
 
-	const auto size{ Vector2D( Render::GetTextSize( items[3].m_szName, Fonts::Menu ).x + PADDING * 2, 15 * 4 + PADDING * 2 ) };
+	const auto size{ Vector2D( Render::GetTextSize( items[ 3 ].m_szName, Fonts::Menu ).x + PADDING * 2 + 8.f, 15.f * 4.f + PADDING * 2 ) };
+	const auto& pos{ Menu::m_pFocusItem.m_vecDrawPos };
 
-	Render::RoundedBox( Menu::m_pFocusItem.m_vecDrawPos - Vector2D( 1, 1 ), size + Vector2D( 2, 2 ), 4, 4, MAX_ALPHA( OUTLINE_DARK ) );
-	Render::RoundedBox( Menu::m_pFocusItem.m_vecDrawPos, size, 4, 4, MAX_ALPHA( OUTLINE_LIGHT ) );
-	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos + Vector2D( 1, 1 ), size - Vector2D( 2, 2 ), 4, 4, MAX_ALPHA( OUTLINE_DARK ) );
+	Render::FilledRoundedBox( pos - Vector2D( 1, 1 ), size + Vector2D( 2, 2 ), 4, 4, Menu::FocusAlpha( OUTLINE_DARK ) );
+	Render::FilledRoundedBox( pos, size, 4, 4, Menu::FocusAlpha( MENU_POPUP ) );
 
 	for ( int i{ }; i < 4; ++i ) {
 		auto& element{ items[ i ] };
 
-		const auto hovered{ Inputsys::hovered( Menu::m_pFocusItem.m_vecDrawPos + Vector2D( PADDING, PADDING + 15 * i ), Vector2D{ size.x, 15 } ) };
+		const auto rowPos{ pos + Vector2D( PADDING, PADDING + 15 * i ) };
+		const auto hovered{ Inputsys::hovered( rowPos, Vector2D{ size.x, 15 } ) };
 
-		Menu::LerpToCol( element.m_cColor, value.mode == i ? ( i & 1 ? ACCENT2 : ACCENT ) : hovered ? HOVERED_ELEMENT : DIM_ELEMENT );
+		Menu::LerpToCol( element.m_cColor, value.mode == i ? ACCENT : hovered ? MENU_TEXT : MENU_TEXT_DIM );
 
-		Render::Text( Fonts::Menu, Menu::m_pFocusItem.m_vecDrawPos + Vector2D( PADDING, PADDING + 15 * i ),
-			MAX_ALPHA( element.m_cColor ), FONT_LEFT, element.m_szName );
+		if ( hovered )
+			Render::FilledRoundedBox( Vector2D( pos.x + 3.f, rowPos.y - 1.f ), Vector2D( size.x - 6.f, 15.f ), 3, 3, Menu::FocusAlpha( MENU_CONTROL ) );
+
+		Render::Text( Fonts::Menu, rowPos + Vector2D( 2, 0 ), Menu::FocusAlpha( element.m_cColor ), FONT_LEFT, element.m_szName );
 
 		if ( hovered && Inputsys::pressed( VK_LBUTTON ) && !Menu::m_pFocusItem.m_bFrameAfterFocus && !Menu::m_pFocusItem.m_bFadeOut )
 			value.mode = i;
 	}
-
-	const auto hovered{ Inputsys::hovered( Menu::m_pFocusItem.m_vecDrawPos, size ) };
 
 	if ( Inputsys::pressed( VK_LBUTTON ) && !Menu::m_pFocusItem.m_bFrameAfterFocus ) {
 		Menu::m_pFocusItem.m_bFrameAfterFocus = true;
@@ -60,22 +80,25 @@ void CMenuItem::KeybindFocus( ) {
 	}
 }
 
-#undef MAX_ALPHA
-
 void CMenuItem::Keybind( ) {
 	if ( !m_fnShow( ) )
 		return;
 
 	auto& value{ *reinterpret_cast< keybind_t* >( m_pValue ) };
-	const char* renderName{ keys[ value.key ] };
+	const bool listening{ m_pArgs != nullptr };
+	const std::string display{ listening ? std::string( "..." ) : KeyDisplayName( value.key ) };
 
-	const auto textSize{ Render::GetTextSize( renderName, Fonts::Menu ) };
+	const auto textWidth{ Render::GetTextSize( display, Fonts::Menu ).x };
+	const auto pillSize{ Vector2D( textWidth + 12.f, 14.f ) };
 
-	const auto pos{ Menu::m_vecDrawPos + Vector2D{ ( Menu::m_vecSize.x - BAR_SIZE - MARGIN * 3 ) / 2 - PADDING * 4, -ITEM_HEIGHT - PADDING } };
-	const auto hovered{ Inputsys::hovered( pos - Vector2D{textSize.x, 0 }, textSize ) };
+	// right edge of the row above ( keybinds sit next to the checkbox / label they belong to )
+	const auto rowRight{ Menu::m_vecDrawPos + Vector2D{ Menu::ControlWidth( 2 ), -ITEM_HEIGHT - PADDING } };
+	const auto pillPos{ rowRight - Vector2D( pillSize.x, 1.f ) };
+
+	const auto hovered{ Inputsys::hovered( pillPos, pillSize ) };
 	if ( hovered && Inputsys::pressed( VK_RBUTTON ) && !Menu::m_pFocusItem.m_pItem && !Menu::m_pFocusItem.m_bFrameAfterFocus ) {
 		const auto backup{ Menu::m_vecDrawPos };
-		Menu::m_vecDrawPos = pos;
+		Menu::m_vecDrawPos = pillPos + Vector2D( 0.f, pillSize.y + 4.f );
 		Menu::m_pFocusItem.Update( this );
 		Menu::m_vecDrawPos = backup;
 	}
@@ -85,7 +108,13 @@ void CMenuItem::Keybind( ) {
 	else if ( !hovered && Inputsys::pressed( VK_LBUTTON ) )
 		m_pArgs = nullptr;
 
+	// delete / backspace on a hovered key clears it
+	if ( hovered && !m_pArgs && !Menu::m_pFocusItem.m_pItem && ( Inputsys::pressed( VK_DELETE ) || Inputsys::pressed( VK_BACK ) ) )
+		value.key = 0;
+
 	if ( m_pArgs ) {
+		Menu::m_bListeningThisFrame = true;
+
 		for ( int i{ 2 }; i < 255; i++ ) {
 			if ( Inputsys::pressed( i ) ) {
 				if ( i == VK_ESCAPE ) {
@@ -101,5 +130,6 @@ void CMenuItem::Keybind( ) {
 		}
 	}
 
-	Render::Text( Fonts::Menu, pos, m_pArgs ? HOVERED_ELEMENT : SELECTED_ELEMENT, FONT_RIGHT, renderName );
+	Render::FilledRoundedBox( pillPos, pillSize, 4, 4, listening ? ACCENT_DARK : hovered ? MENU_CONTROL_HOVER : MENU_CONTROL );
+	Render::Text( Fonts::Logs, pillPos + Vector2D( pillSize.x / 2.f, 1.f ), listening ? MENU_TEXT : value.key ? ACCENT2 : MENU_TEXT_DIM, FONT_CENTER, display.c_str( ) );
 }

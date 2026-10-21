@@ -57,7 +57,7 @@ void Displacement::Init( void* netvarsPTR ) {
 	DT_BasePlayer( m_hGroundEntity );
 	DT_BasePlayer( m_bStrafing );
 	DT_BasePlayer( m_nModelIndex );
-	DT_BasePlayer( m_vecBaseVelocity );
+	DT_BasePlayer( m_vecAbsVelocity );
 	DT_BasePlayer( pl );
 	Netvars->m_vecVelocity = PropManager::Get( ).GetOffset( _( "DT_BasePlayer" ), _( "m_vecVelocity[0]" ) );// one off cuz diff name
 
@@ -81,6 +81,7 @@ void Displacement::Init( void* netvarsPTR ) {
 	DT_CSPlayer( m_flThirdpersonRecoil );
 	DT_CSPlayer( m_bIsWalking );
 	DT_CSPlayer( m_bIsPlayerGhost );
+	DT_CSPlayer( m_flLastExoJumpTime );
 
 	DT_BaseCombatCharacter( m_hActiveWeapon );
 	DT_BaseCombatCharacter( m_hMyWeapons );
@@ -203,7 +204,6 @@ void Displacement::Init( void* netvarsPTR ) {
 	DEFCVAR( sv_showimpacts_time );
 	DEFCVAR( cl_predict );
 
-
 	DEFCVAR( fog_override );
 	DEFCVAR( fog_start );
 	DEFCVAR( fog_end );
@@ -225,7 +225,7 @@ void Displacement::Init( void* netvarsPTR ) {
 	Interfaces::ConVar->FindVar( _( "r_drawspecificstaticprop" ) )->SetValue( 0 );
 	Interfaces::ConVar->FindVar( _( "developer" ) )->SetValue( 1 );
 	Interfaces::ConVar->FindVar( _( "con_filter_enable" ) )->SetValue( 2 );
-	Interfaces::ConVar->FindVar( _( "con_filter_text" ) )->SetValue( _( "[ HAVOC ]" ) );
+	Interfaces::ConVar->FindVar( _( "con_filter_text" ) )->SetValue( _( "[ CorgiHak ]" ) );
 	Interfaces::ConVar->FindVar( _( "cl_predict" ) )->nFlags &= ~FCVAR_NOT_CONNECTED;
 	//Interfaces::ConVar->FindVar( _( "cl_pred_optimize" ) )->SetValue( 0 );
 	//Interfaces::ConVar->FindVar( _( "cl_pred_doresetlatch" ) )->nFlags &= ~FCVAR_HIDDEN;
@@ -242,16 +242,15 @@ void Displacement::Init( void* netvarsPTR ) {
 	
 	Sigs.CBaseEntity__PrecacheModel = MEM::FindPattern( SERVER_DLL, _( "56 8B F1 85 F6 74 4F" ) );// WARNING: THIS IS NOT UNIQUE SIG!
 
-	Sigs.uPredictionRandomSeed = MEM::FindPattern( CLIENT_DLL, _( "8B 0D ? ? ? ? BA ? ? ? ? E8 ? ? ? ? 83 C4 04" ) ) + 0x2;
-	Sigs.pPredictionPlayer = MEM::FindPattern( CLIENT_DLL, _( "89 35 ? ? ? ? F3 0F 10 48 20" ) ) + 0x2;
-
+	Sigs.uPredictionRandomSeed = MEM::FindPattern( CLIENT_DLL, _( "8B 0D ? ? ? ? BA ? ? ? ? E8 ? ? ? ? 83 C4 04" ) ) + 0x2u;
+	Sigs.pPredictionPlayer = MEM::FindPattern( CLIENT_DLL, _( "89 35 ? ? ? ? F3 0F 10 48 20" ) ) + 0x2u;
 
 	Sigs.ReInitPredictables = MEM::FindPattern( CLIENT_DLL, _( "A1 ? ? ? ? B9 ? ? ? ? 53 56 FF 50 ? 8B D8" ) );
 	Sigs.ShutDownPredictables = MEM::FindPattern( CLIENT_DLL, _( "53 56 8B 35 ? ? ? ? 33 DB 57 33" ) );
 
 	Sigs.InitKeyValues = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 56 8B F1 33 C0 8B 4D 0C 81" ) );// @xref: "OldParticleSystem_Destroy"
 	Sigs.DestructKeyValues = MEM::FindPattern( CLIENT_DLL, _( "56 8B F1 E8 ? ? ? ? 8B 4E 14" ) );// @xref: "OldParticleSystem_Destroy"
-	Sigs.oFromString = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 81 EC ? ? ? ? 85 D2 53" ) );// @xref: "#empty#", "#int#"
+	Sigs.oFromString = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 81 EC 0C 05" ) );// @xref: "#empty#", "#int#"
 	Sigs.oLoadFromBuffer = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 34 53 8B 5D 0C 89" ) );// @xref: "KeyValues::LoadFromBuffer(%s%s%s): Begin"
 	Sigs.oLoadFromFile = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 14 53 56 8B 75 08 57 FF" ) );// @xref: "rb"
 	Sigs.oFindKey = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 EC 1C 53 8B D9 85 DB" ) );// @xref: "rb"
@@ -262,20 +261,15 @@ void Displacement::Init( void* netvarsPTR ) {
 	Sigs.oUpdateAnimationState = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 18 56 57 8B F9 F3 0F 11 54 24" ) );// @xref: "%s_aim"
 	Sigs.oResetAnimationState = MEM::FindPattern( CLIENT_DLL, _( "56 6A 01 68 ? ? ? ? 8B F1" ) );// @xref: "player_spawn"
 
-
 	Sigs.ReturnToClampBonesInBBox = MEM::FindPattern( CLIENT_DLL, _( "84 C0 0F 84 ? ? ? ? 8B 06 8B CE 8B 40 20" ) );
-
 	Sigs.ReturnToDrawCrosshair = MEM::FindPattern( CLIENT_DLL, _( "83 F8 05 75 17 A1 ? ? ? ? B9 ? ? ? ? 8B 40 34" ) );
 	Sigs.ReturnToWantReticleShown = MEM::FindPattern( CLIENT_DLL, _( "83 F8 05 75 0D 80 BF ? ? ? ? ? 75 5C 84 FF 74 58" ) );
 
 	Sigs.ReturnToProcessInputIsBoneAvailableForRead = MEM::FindPattern( CLIENT_DLL, _( "84 C0 0F 84 ? ? ? ? 8B 44 24 14 8B 4C 24 28 8B 78 7C 8D 84 24" ) );
 	Sigs.ReturnToProcessInputGetAbsOrigin = MEM::FindPattern( CLIENT_DLL, _( "F3 0F 10 44 24 ? F3 0F 10 54 24 ? F3 0F 10 4C 24 ? F3 0F 5C 40 ? 8B 7C 24 14 F3" ) );
 
-
 	Sigs.ClipRayToHitbox = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 F3 0F 10 42" ) );
-
 	Sigs.MD5PseudoRandom = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 70 6A 58 8D 44 24 1C 89 4C 24 08 6A 00 50" ) );
-
 
 	Sigs.FindMapping = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 ? 81 EC ? ? ? ? 53 56 57 8B F9 8B 17" ) );
 	Sigs.SelectWeightedSequenceFromModifiers = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 34 53 56 8B 75 08 8B D9 57 89" ) );
@@ -285,24 +279,18 @@ void Displacement::Init( void* netvarsPTR ) {
 	Sigs.CalcShotgunSpread = calc_shotgun_spread_rel + 0x1u + sizeof( std::uintptr_t )
 		+ *reinterpret_cast< std::ptrdiff_t* >( calc_shotgun_spread_rel + 0x1u );
 
-
 	Sigs.uDisableRenderTargetAllocationForever = MEM::FindPattern( MATERIALSYSTEM_DLL, _( "80 B9 ? ? ? ? ? 74 0F" ) );// @xref: "Tried BeginRenderTargetAllocation after game startup. If I let you do this, all users would suffer.\n"
 
-	Sigs.SetAbsOrigin = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 51 53 56 57 8B F1 E8 ? ? ? ? 8B 7D 08 F3 0F 10 07 0F 2E 86" ) );
+	Sigs.SetAbsOrigin = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 51 53 56 57 8B F1 E8" ) );
 	Sigs.SetAbsAngles = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 64 53 56 57 8B F1 E8" ) );
 	Sigs.SetAbsVelocity = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 0C 53 56 57 8B 7D 08 8B F1 F3" ) );
 
 	Sigs.PostProcess = MEM::FindPattern( CLIENT_DLL, _( "80 3D ? ? ? ? ? 53 56 57 0F 85" ) );
-
 	Sigs.SmokeCount = MEM::FindPattern( CLIENT_DLL, _( "A3 ? ? ? ? 57 8B CB" ) );
-
 	Sigs.TakeDamageOffset = MEM::FindPattern( CLIENT_DLL, _( "80 BE ? ? ? ? ? 75 46 8B 86" ) );
-
 	Sigs.LookupBone = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 53 56 8B F1 57 83 BE ? ? ? ? ? 75 14" ) );
 
-
-	Sigs.InvalidatePhysicsRecursive = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 0C 53 8B 5D 08 8B C3 56 83 E0 04" ) );
-
+	Sigs.InvalidatePhysicsRecursive = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 0C 53 8B 5D 08 8B C3" ) );
 	Sigs.ClearNotices = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 EC 0C 53 56 8B 71 58" ) );
 
 	Sigs.StartDrawing = MEM::FindPattern( VGUI_DLL, _( "55 8B EC 83 E4 C0 83 EC 38" ) );
@@ -311,45 +299,31 @@ void Displacement::Init( void* netvarsPTR ) {
 	Sigs.ReturnToInterpolateServerEntitiesExtrap = ( MEM::FindPattern( CLIENT_DLL, _( "0F B6 0D ? ? ? ? 84 C0 0F 44" ) ) );
 
 	Sigs.SetupVelocityReturn = MEM::FindPattern( CLIENT_DLL, _( "84 C0 75 38 8B 0D ? ? ? ? 8B 01 8B 80" ) );
-	//Sigs.AccumulateLayersReturn = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 57 8B F9 8B 0D ? ? ? ? 8B 01 8B 80" ) + 22 );
-
 	Sigs.uInsertIntoTree = ( MEM::FindPattern( CLIENT_DLL, _( "56 52 FF 50 18" ) ) + 0x5 );// @xref: "<unknown renderable>"
 
 	Sigs.uCAM_ThinkReturn = MEM::FindPattern( CLIENT_DLL, _( "85 C0 75 30 38 87" ) );
 	Sigs.DoResetLatchReturn = MEM::FindPattern( CLIENT_DLL, _( "85 C0 75 28 8B 0D ? ? ? ? 81" ) );
 
 	Sigs.ReturnToEyePosAndVectors = MEM::FindPattern( CLIENT_DLL, _( "8B 55 0C 8B C8 E8 ? ? ? ? 83 C4 08 5E 8B E5" ) );
-
-	Sigs.InvalidateBoneCache = MEM::FindPattern( CLIENT_DLL, _( "80 3D ? ? ? ? ? 74 16 A1 ? ? ? ? 48 C7 81" ) );
-
-	Sigs.SetCollisionBounds = MEM::FindPattern( CLIENT_DLL, _( "53 8B DC 83 EC 08 83 E4 F8 83 C4 04 55 8B 6B 04 89 6C 24 04 8B EC 83 EC 18 56 57 8B 7B" ) );
-
+	Sigs.InvalidateBoneCache = MEM::FindPattern( CLIENT_DLL, _( "80 ? ? ? ? ? ? 74 16 A1 ? ? ? ? 48 C7 ? ? ? ? ? ? ? ? ? 89 ? ? ? ? ? C3" ) );
+	Sigs.SetCollisionBounds = MEM::FindPattern( CLIENT_DLL, _( "53 8B DC 83 EC 08 83 E4 F8 83 C4 04 55 8B 6B 04 89 6C 24 04 8B EC 83 EC 18 56 57 8B 7B 08 8B D1 8B 4B 0C" ) );
 	Sigs.m_pStudioHdr = ( MEM::FindPattern( CLIENT_DLL, _( "8B B7 ? ? ? ? 89 74 24 20" ) ) + 0x2 );
-
-	Sigs.WriteUsercmd = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 51 53 56 8B D9 8B 0D" ) );
-
+	Sigs.WriteUsercmd = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 51 53 56 8B D9" ) );
 	Sigs.AddBoxOverlayReturn = MEM::FindPattern( CLIENT_DLL, _( "3B 3D ? ? ? ? 75 4C" ) );
+	Sigs.IsBreakable = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 51 56 8B F1 85 F6 74 ? 83" ) );
 
-	Sigs.IsBreakable = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 51 56 8B F1 85 F6 74 68 83 BE" ) );
+	Sigs.GetSequenceActivity = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 53 8B 5D 08 56 8B F1 83" ) );// @xref: "Need to handle the activity %d\n"
 
-
-	Sigs.GetSequenceActivity = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 53 8B 5D ? 56 8B F1 83 FB" ) );// @xref: "Need to handle the activity %d\n"
-
-	Sigs.SetupBones_AttachmentHelper = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 EC 48 53 8B 5D" ) );
+	Sigs.SetupBones_AttachmentHelper = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 EC 48 53 8B 5D 08 89 4D F4" ) );
 	Sigs.ClampBonesInBBox = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 70 56 57 8B F9 89 7C 24 38 83 BF" ) );
-	Sigs.StandardBlendingRules = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F0 B8 ? ? ? ? E8 ? ? ? ? 56 8B 75 08 57 8B F9 85 F6" ) );
-	Sigs.C_BaseAnimating__BuildTransformations = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F0 81 EC ? ? ? ? 56 57 8B F9 8B 0D ? ? ? ? 89 7C 24 28 8B" ) );// C_CSPlayer: 55 8B EC 53 56 57 FF 75 1C
 
 	Sigs.CL_FireEvents = MEM::FindPattern( ENGINE_DLL, _( "55 8B EC 83 EC 08 53 8B 1D ? ? ? ? 56 57 83 BB" ) );
 	Sigs.NET_ProcessSocket = MEM::FindPattern( ENGINE_DLL, _( "55 8B EC 83 E4 F8 83 EC 4C 53 56 8B D9 89 54 24 10 57 89 5C 24 10 E8" ) );
 
-	Sigs.TraceFilterSkipTwoEntities = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 81 EC BC 00 00 00 56 8B F1 8B 86" ) ) + 0x21E;
-
+	Sigs.TraceFilterSkipTwoEntities = MEM::FindPattern( CLIENT_DLL, _( "C7 45 ? ? ? ? ? 89 45 E4 8B 01" ) ) + 0x3u;
 	Sigs.ReturnToPerformPrediction = MEM::FindPattern( CLIENT_DLL, _( "89 45 EC 85 C0 0F ? ? ? ? ? 80 78" ) );
 	Sigs.ReturnToInterpolateServerEntities = MEM::FindPattern( CLIENT_DLL, _( "84 C0 74 07 C6 05 ? ? ? ? ? 8B" ) );
-
 	Sigs.GetLayerIdealWeightFromSeqCycle = MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 EC ? 53 56 8B 35 ? ? ? ? 57 8B F9 8B CE 8B 06 FF 90 ? ? ? ? 8B 7F ? 0F 57 DB" ) );
-
 
 	Sigs.CL_SendMove = MEM::FindPattern( ENGINE_DLL, _( "55 8B EC 8B 4D 04 81 EC ? ? ? ? 53 56 57 E8" ) );
 	Sigs.ClanTag = MEM::FindPattern( ENGINE_DLL, _( "53 56 57 8B DA 8B F9 FF 15" ) );
@@ -360,8 +334,6 @@ void Displacement::Init( void* netvarsPTR ) {
 
 	Sigs.current_tickcount = ( MEM::FindPattern( ENGINE_DLL, _( "48 39 05 ? ? ? ? 74 C6" ) ) + 3 );// in host_shouldrun
 	Sigs.host_currentframetick = ( MEM::FindPattern( ENGINE_DLL, _( "FF 05 ? ? ? ? 8B 0D ? ? ? ? A3" ) ) + 2 );// in host_shouldrun
-
-
 
 	// setupbones rebuild
 	Sigs.CIKContext__Construct = ( MEM::FindPattern( CLIENT_DLL, _( "53 8B D9 F6 C3 03 74 0B FF 15 ? ? ? ? 84 C0 74 01 CC C7 83 ? ? ? ? ? ? ? ? 8B CB" ) ) );

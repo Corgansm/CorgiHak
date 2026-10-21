@@ -46,7 +46,7 @@ int ScaleStabDamage( CBasePlayer* player, bool backStab, bool secondary ) {
 
 void CRageBot::KnifeBot( CUserCmd& cmd ) {
 	auto targets{ new std::vector< KnifeTarget_t> };
-	for ( auto i{ 1 }; i < 64; i++ ) {
+	for (auto i = 1; i < 64; ++i) {
 		auto player{ static_cast< CBasePlayer* >( Interfaces::ClientEntityList->GetClientEntity( i ) ) };
 		if ( !player
 			|| player->IsDormant( )
@@ -123,7 +123,7 @@ void CRageBot::KnifeBot( CUserCmd& cmd ) {
 		bestTarget->m_pRecord->Apply( bestTarget->m_pPlayer, bestTarget->m_pRecord->m_iResolverSide );
 		bestTarget->m_pPlayer->SetAbsAngles( { 0, bestTarget->m_pRecord->m_cAnimData.m_arrSides.at( bestTarget->m_pRecord->m_iResolverSide ).m_cAnimState.flAbsYaw, 0 } );
 		
-		bestTarget->m_pPlayer->ClampBonesInBBOX( bestTarget->m_pPlayer->m_CachedBoneData( ).Base( ), BONE_USED_BY_SERVER );
+		//bestTarget->m_pPlayer->ClampBonesInBBOX( bestTarget->m_pPlayer->m_CachedBoneData( ).Base( ), BONE_USED_BY_SERVER );
 		const auto hitboxSet{ bestTarget->m_pPlayer->m_pStudioHdr( )->pStudioHdr->GetHitboxSet( bestTarget->m_pPlayer->m_nHitboxSet( ) ) };
 		const auto hitbox{ hitboxSet->GetHitbox( HITBOX_CHEST ) };
 

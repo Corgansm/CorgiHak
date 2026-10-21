@@ -24,26 +24,23 @@ void** STDCALL Hooks::hkFinishTrackPredictionErrors( CBasePlayer* pPlayer ) {
 	return oFinishTrackPredictionErrors( pPlayer );
 }
 
-CUserCmd* FASTCALL Hooks::hkGetUserCmd( uint8_t* ecx, uint8_t* edx, int slot, int seqnr ) {
+CUserCmd* FASTCALL Hooks::hkGetUserCmd( uint8_t* ecx, uint8_t* edx, int slot, int seqnr ) 
+{
 	static auto oGetUserCmd{ DTR::GetUserCmd.GetOriginal<decltype( &hkGetUserCmd )>( ) };
 
 	if ( !ctx.m_pLocal )
 		return oGetUserCmd( ecx, edx, slot, seqnr );
 
 	const auto& localData{ ctx.m_cLocalData.at( seqnr % 150 ) };
-
 	const auto ret{ oGetUserCmd( ecx, edx, slot, seqnr ) };
 
-	if ( reinterpret_cast< uintptr_t >( _ReturnAddress( ) ) == Displacement::Sigs.ReturnToPerformPrediction ) {
-		if ( localData.m_bOverrideTickbase
-			&& std::abs( ctx.m_pLocal->m_nTickBase( ) - localData.m_iAdjustedTickbase ) <= 17 )
+	if ( reinterpret_cast< uintptr_t >( _ReturnAddress( ) ) == Displacement::Sigs.ReturnToPerformPrediction ) 
+	{
+		if ( localData.m_bOverrideTickbase && std::abs( ctx.m_pLocal->m_nTickBase( ) - localData.m_iAdjustedTickbase ) <= 17 )
 			ctx.m_pLocal->m_nTickBase( ) = localData.m_iAdjustedTickbase;
 
 		if ( ret && ret->iTickCount == INT_MAX )
 			ret->bHasBeenPredicted = true;
-
-		//if ( !ret || ret->iTickCount == INT_MAX || Config::Get<keybind_t>( Vars.DBGKeybind ).enabled )
-		//	return nullptr;
 	}
 
 	return ret;

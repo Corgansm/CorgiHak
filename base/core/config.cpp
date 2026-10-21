@@ -4,8 +4,36 @@
 #include "config.h"
 #include "../core/input_manager.h"
 #include "../features/rage/antiaim.h"
+#include "lua/lua_engine.h"
 
 #include <fstream>
+
+namespace {
+	// remembered so the next injection starts with the same settings
+	void RememberLast( const std::filesystem::path& file )
+	{
+		std::ofstream out( Config::fsPath / _( "last.txt" ), std::ios::out | std::ios::trunc );
+		if ( out.good( ) )
+			out << file.filename( ).string( );
+	}
+}
+
+std::string Config::LoadLast( )
+{
+	std::ifstream in( fsPath / _( "last.txt" ), std::ios::in );
+	if ( !in.good( ) )
+		return { };
+
+	std::string name{ };
+	std::getline( in, name );
+	while ( !name.empty( ) && ( name.back( ) == '\r' || name.back( ) == ' ' ) )
+		name.pop_back( );
+
+	if ( name.empty( ) || !std::filesystem::exists( fsPath / name ) )
+		return { };
+
+	return Load( name ) ? name : std::string( );
+}
 
 bool Config::Setup( )
 {
@@ -143,6 +171,14 @@ bool Config::Save(std::string_view szFileName)
 			// add current variable to config
 			config.push_back(entry);
 		}
+
+		// lua script item values ( unknown name hash: older builds skip the entry )
+		nlohmann::json lua = { };
+		lua[_("name-id")] = FNV1A::HashConst("__corgi_lua");
+		lua[_("type-id")] = 0;
+		lua[_("corgi-lua")] = nlohmann::json::parse(Lua::ExportConfig(), nullptr, false);
+		if (!lua[_("corgi-lua")].is_discarded())
+			config.push_back(lua);
 	}
 	catch (const nlohmann::detail::exception& ex)
 	{
@@ -166,6 +202,8 @@ bool Config::Save(std::string_view szFileName)
 		return false;
 	}
 
+	strActive = szFile.filename().string();
+	RememberLast(szFile);
 
 	return true;
 }
@@ -198,10 +236,20 @@ bool Config::Load(std::string_view szFileName)
 		return false;
 	}
 
+	bool hadLua{ };
+
 	try
 	{
 		for (const auto& variable : config)
 		{
+			// lua script item values
+			if (variable.is_object() && variable.find(_("corgi-lua")) != variable.end())
+			{
+				hadLua = true;
+				Lua::ImportConfig(variable[_("corgi-lua")].dump());
+				continue;
+			}
+
 			const std::size_t nIndex = GetVariableIndex(variable[_("name-id")].get<FNV1A_t>());
 
 			// check is variable exist
@@ -211,7 +259,16 @@ bool Config::Load(std::string_view szFileName)
 			// get variable
 			auto& entry = vecVariables.at(nIndex);
 
-			switch (variable[_("type-id")].get<FNV1A_t>())
+			// a variable whose type changed between builds: the saved value would replace the variable with the
+			// wrong type, and the next Get<> returns null ( crash ). keep the default instead
+			const auto typeId = variable[_("type-id")].get<FNV1A_t>();
+			if (typeId != entry.uTypeHash)
+				continue;
+
+			// one malformed entry no longer stops the rest of the config from loading
+			try
+			{
+			switch (typeId)
 			{
 			case FNV1A::HashConst("bool"):
 			{
@@ -304,6 +361,11 @@ bool Config::Load(std::string_view szFileName)
 			default:
 				break;
 			}
+			}
+			catch (const nlohmann::detail::exception&)
+			{
+				continue;
+			}
 		}
 	}
 	catch (const nlohmann::detail::exception& ex)
@@ -311,8 +373,15 @@ bool Config::Load(std::string_view szFileName)
 		return false;
 	}
 
+	// a config saved without scripts carries no script values: forget the previous config's ones
+	if (!hadLua)
+		Lua::ImportConfig("{}");
+
 	Features::Antiaim.ManualSide = 0;
 	Config::Get<bool>( Vars.DBGLC1 ) = false;
+
+	strActive = szFile.filename().string();
+	RememberLast(szFile);
 
 	return true;
 }

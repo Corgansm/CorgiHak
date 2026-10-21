@@ -1,4 +1,5 @@
 #include "../../core/hooks.h"
+#include "../../core/lua/lua_engine.h"
 #include "../../context.h"
 #include "../../features/rage/antiaim.h"
 #include "../../features/animations/animation.h"
@@ -10,13 +11,7 @@ void FASTCALL Hooks::hkStandardBlendingRules( CBasePlayer* const ent, const std:
 	if ( !ent || !ctx.m_pLocal || !ent->IsPlayer( ) )
 		return oStandardBlendingRules( ent, edx, mdl_data, a1, a2, a3, mask );
 
-	//if ( ctx.m_bSetupBones )
-	//	mask = BONE_USED_BY_HITBOX;
-
 	static auto lookupBone{ *reinterpret_cast< int( __thiscall* )( void*, const char* ) >( Displacement::Sigs.LookupBone ) };
-
-	//Vector pos[ 256 ];
-	//Quaternion q[ 256 ];
 
 	const auto bone_index = lookupBone( ent, _( "lean_root" ) );
 	if ( bone_index == -1 )
@@ -31,10 +26,6 @@ void FASTCALL Hooks::hkStandardBlendingRules( CBasePlayer* const ent, const std:
 	oStandardBlendingRules( ent, edx, mdl_data, a1, a2, a3, mask );
 
 	boneFlags = backupBoneFlags;
-
-	/*uint8_t bone_computed[ 256 ]; std::memset( bone_computed, 0, 256 );
-	matrix3x4a_t parent_transform; parent_transform.SetAngles( { 0.f, ent->GetAbsAngles( ).y, 0.f } ); parent_transform.SetOrigin( ent->GetAbsOrigin( ) );
-	ent->BuildTransformations( ent->m_pStudioHdr( ), a1, a2, parent_transform, BONE_USED_BY_SERVER, bone_computed );*/
 }
 
 void FASTCALL Hooks::hkDoExtraBonesProcessing( void* ecx, uint32_t edx, CStudioHdr* hdr, Vector* pos, Quaternion* q, const matrix3x4_t& matrix, uint8_t* bone_computed, void* context ) {
@@ -93,96 +84,98 @@ void FASTCALL Hooks::hkClampBonesInBBox( CBasePlayer* ecx, uint32_t edx, matrix3
 	
 }
 
-bool FASTCALL Hooks::hkSetupbones( const std::uintptr_t ecx, const std::uintptr_t edx, matrix3x4_t* bones, 
-	int max_bones, int mask, float time ) {
+bool FASTCALL Hooks::hkSetupbones( const std::uintptr_t ecx, const std::uintptr_t edx, matrix3x4_t* bones, int max_bones, int mask, float time )
+{
 	static auto oSetupbones{ DTR::Setupbones.GetOriginal<decltype( &hkSetupbones )>( ) };
+
 	const auto player = reinterpret_cast< CBasePlayer* >( ecx - sizeof( std::uintptr_t ) );
-	const auto boneCount{ player->m_iBoneCount( ) };
+	if (player->IsDead() || !player->IsPlayer())
+		return oSetupbones(ecx, edx, bones, max_bones, mask, time);
 
-	if ( ctx.m_bInCreatemove ) {
-		if ( !bones
-			|| max_bones == -1 )
-			return true;
+	auto& entry = Features::AnimSys.m_arrEntries.at(player->Index() - 1);
+	if (entry.m_pPlayer != player && player != ctx.m_pLocal)
+		return oSetupbones(ecx, edx, bones, max_bones, mask, time);
 
-		std::memcpy(
-			bones, player->m_CachedBoneData( ).Base( ),
-			boneCount * sizeof( matrix3x4_t )
-		);
+	// no animated matrix for this player yet ( just spawned / map change ): the stored one belongs to an
+	// old position or model, shifting it would stretch the model across the map
+	if (player != ctx.m_pLocal && entry.m_vecUpdatedOrigin.IsZero())
+		return oSetupbones(ecx, edx, bones, max_bones, mask, time);
 
-		//if ( mask & BONE_USED_BY_ATTACHMENT )
-		//	player->SetupBonesAttachmentHelper( );
+	if (!ctx.m_bInCreatemove)
+	{
+		const auto abs_origin{ player->GetAbsOrigin() };
 
-		return true;
-	}
+		if (entry.m_vecLastMergeOrigin != abs_origin)
+		{
+			const auto org{ player == ctx.m_pLocal ? ctx.m_vecSetupBonesOrigin : entry.m_vecUpdatedOrigin };
+			const auto delta{ player->GetAbsOrigin() - org };
 
-	if ( player->IsDead( )
-		|| !player->IsPlayer( ) )
-		return oSetupbones( ecx, edx, bones, max_bones, mask, time );
+			auto& mat{ player == ctx.m_pLocal ? ctx.m_matRealLocalBones : entry.m_matMatrix };
 
-	auto& entry = Features::AnimSys.m_arrEntries.at( player->Index( ) - 1 );
-	if ( entry.m_pPlayer != player
-		&& player != ctx.m_pLocal )
-		return oSetupbones( ecx, edx, bones, max_bones, mask, time );
+			for (std::size_t i{ }; i < player->m_CachedBoneData().Size(); ++i)
+			{
+				auto& bone{ player->m_CachedBoneData().Base()[i] };
+				auto& bone_new{ mat[i] };
 
-	const auto absOrigin{ player->GetAbsOrigin( ) };
-	if ( entry.m_vecLastMergeOrigin != absOrigin ) {
-		const auto org{ player == ctx.m_pLocal ? ctx.m_vecSetupBonesOrigin : entry.m_vecUpdatedOrigin };
-		const auto delta{ player->GetAbsOrigin( ) - org };
+				bone.SetOrigin(bone_new.GetOrigin() + delta);
+			}
 
-		auto& mat{ player == ctx.m_pLocal ? ctx.m_matRealLocalBones : entry.m_matMatrix };
-
-		for ( std::size_t i{ }; i < boneCount; ++i ) {
-			auto& bone{ player->m_CachedBoneData( ).Base( )[ i ] };
-			auto& boneNew{ mat[ i ] };
-
-			bone.SetOrigin( boneNew.GetOrigin( ) + delta );
+			entry.m_vecLastMergeOrigin = abs_origin;
 		}
-
-		entry.m_vecLastMergeOrigin = absOrigin;
 	}
 
-	if ( mask & BONE_USED_BY_ATTACHMENT )
-		player->SetupBonesAttachmentHelper( );
+	if (!bones || max_bones == -1)
+		return true;
 
-	if ( bones ) {
-		std::memcpy(
-			bones, player->m_CachedBoneData( ).Base( ),
-			boneCount * sizeof( matrix3x4_t )
-		);
+	std::memcpy(bones, player->m_CachedBoneData().Base(), player->m_CachedBoneData().Size() * sizeof(matrix3x4_t));
+
+	if (!ctx.m_bInCreatemove)
+	{
+		if (mask & BONE_USED_BY_ATTACHMENT)
+			player->SetupBonesAttachmentHelper();
 	}
 
 	return true;
 }
-void FASTCALL Hooks::hkUpdateClientsideAnimation( CBasePlayer* ecx, void* edx ) {
+
+void FASTCALL Hooks::hkUpdateClientsideAnimation( CBasePlayer* ecx, void* edx )
+{
 	static auto oUpdateClientsideAnimation{ DTR::UpdateClientsideAnimation.GetOriginal<decltype( &hkUpdateClientsideAnimation )>( ) };
-	if ( ecx->IsDead( )
-		|| !ecx->IsPlayer( ) )
+	if ( ecx->IsDead( ) || !ecx->IsPlayer( ) )
 		return oUpdateClientsideAnimation( ecx, edx );
 
 	const auto backup{ *ecx->m_pAnimState( ) };
-	if ( !ctx.m_bUpdatingAnimations ) {
+
+	// lua scripts ( momentum animlayer resim ) call this directly from inside their callbacks:
+	// let those through to the game, the script saves and restores the animstate itself
+	if ( Lua::InCallback( ) && ecx != ctx.m_pLocal )
+		return oUpdateClientsideAnimation( ecx, edx );
+
+	if ( !ctx.m_bUpdatingAnimations )
+	{
 		if ( ecx != ctx.m_pLocal )
 			return;
 	}
 
 	oUpdateClientsideAnimation( ecx, edx );
 
-	if ( !ctx.m_bUpdatingAnimations
-		&& ecx == ctx.m_pLocal )
+	if ( !ctx.m_bUpdatingAnimations && ecx == ctx.m_pLocal )
 		*ecx->m_pAnimState( ) = backup;
 }
 
-void __vectorcall Hooks::HkAnimStateUpdate( void* ecx, void*, float, float, float, void* ) {
+void __vectorcall Hooks::HkAnimStateUpdate( void* ecx, void*, float, float, float, void* )
+{
 	// fuck your game calls i wanna do this myself >:(
-
 }
 
-void FASTCALL Hooks::hkAccumulateLayers( CBasePlayer* const ecx, const std::uintptr_t edx, int a0, int a1, float a2, int a3 ) {
+void FASTCALL Hooks::hkAccumulateLayers( CBasePlayer* const ecx, const std::uintptr_t edx, int a0, int a1, float a2, int a3 ) 
+{
 	static auto oAccumulateLayers = DTR::AccumulateLayers.GetOriginal<decltype( &hkAccumulateLayers )>( );
 	if ( !ecx->IsPlayer( ) )
 		return oAccumulateLayers( ecx, edx, a0, a1, a2, a3 );
 
-	if ( const auto state = ecx->m_pAnimState( ) ) {
+	if ( const auto state = ecx->m_pAnimState( ) )
+	{
 		const auto backupFirstUpdate = state->bFirstUpdate;
 
 		// bone snapshots fix

@@ -30,6 +30,10 @@ struct VisualPlayerEntry {
 	int health{ 100 };
 	float Alpha{ 1 };
 	float DormancyFade{ 0 };
+	float m_flFade{ };            // linear 0..1 behind Alpha ( Alpha = eased )
+	float m_flHealth{ -1.f };     // drawn health, drains smoothly
+	float m_flHealthTrail{ -1.f };// lighter "damage taken" chunk that follows a moment later
+	float m_flTrailDelay{ };
 	CBasePlayer* ent{ };
 	rect BBox{ };
 
@@ -37,7 +41,7 @@ struct VisualPlayerEntry {
 };
 
 struct hitmarker_t {
-	hitmarker_t( Vector pos, int dmg, float curTime )
+	hitmarker_t( Vector pos, int dmg, float curTime, int group = -1, bool kill = false )
 	{
 		position = pos;
 		damage = dmg;
@@ -45,7 +49,13 @@ struct hitmarker_t {
 		alpha = 1.f;
 		step = 0.f;
 		screen = Vector2D( 0, 0 );
+		hitgroup = group;
+		lethal = kill;
+		drift = static_cast< float >( ( dmg * 37 ) % 21 - 10 );
 	}
+	int hitgroup{ -1 };
+	bool lethal{ };
+	float drift{ };   // small sideways offset so stacked numbers don't overlap
 	Vector position;
 	Vector2D screen;
 	int damage = INT_MIN;
@@ -209,7 +219,7 @@ struct TracerData_t {
 
 inline bool PrecacheParticle( const char* szName ) {
 	INetworkStringTable* g_pStringTableParticleEffectNames = Interfaces::NetworkContainer->FindTable( _( "ParticleEffectNames" ) );
-	Interfaces::NetworkContainer->SetAllowClientSideAddString( g_pStringTableParticleEffectNames, true );
+	//Interfaces::NetworkContainer->SetAllowClientSideAddString( g_pStringTableParticleEffectNames, true );
 
 
 	if ( g_pStringTableParticleEffectNames ) {
@@ -298,6 +308,51 @@ public:
 	void Main( );
 };
 
+// built-in hit / kill sounds ( game files, nothing to install ); index 2 = custom file from the textbox
+namespace SoundPack {
+	constexpr int Count{ 6 };
+	inline const char* Path( int index ) {
+		switch ( index ) {
+		case 1: return "buttons/arena_switch_press_02.wav";
+		case 3: return "physics/metal/metal_solid_impact_bullet2.wav";
+		case 4: return "training/bell_normal.wav";
+		case 5: return "buttons/button22.wav";
+		default: return nullptr;
+		}
+	}
+
+	inline void Play( int index, const std::string& custom ) {
+		if ( index == 2 ) {
+			if ( !custom.empty( ) )
+				Interfaces::Surface->PlaySoundSurface( ( custom + ".wav" ).c_str( ) );
+			return;
+		}
+		if ( const auto path{ Path( index ) } )
+			Interfaces::Surface->PlaySoundSurface( path );
+	}
+}
+
+struct KillEffect_t {
+	Vector m_vecHead{ };
+	Vector m_vecFeet{ };
+	float m_flStart{ };
+	bool m_bHeadshot{ };
+	int m_iStreak{ 1 };
+	std::string m_strName{ };
+};
+
+class CKillEffects {
+public:
+	void Add( CBasePlayer* victim, bool headshot );
+	void Draw( );
+	void Clear( ) { m_vecEffects.clear( ); }
+
+private:
+	std::vector< KillEffect_t > m_vecEffects{ };
+	float m_flLastKill{ -100.f };
+	int m_iStreak{ };
+};
+
 class CVisuals {
 public:
 	void Main( );
@@ -305,6 +360,7 @@ public:
 	void Watermark( );
 	void SkyboxChanger( );
 	void KeybindsList( );
+	void SpectatorList( );
 	void ModelChanger( );
 
 	FORCEINLINE void AddHit( hitmarker_t hit ) { hits.push_back( std::make_shared< hitmarker_t>( hit ) ); }
@@ -315,6 +371,7 @@ public:
 	CGrenadePrediction GrenadePrediction;
 	CBulletTracers BulletTracers;
 	CWeather Weather;
+	CKillEffects KillEffects;
 
 	std::vector<std::shared_ptr< hitmarker_t >> hits;
 
@@ -325,8 +382,13 @@ private:
 	Vector2D m_vec2KeyBindAbsSize{ };
 
 	bool m_bKeybindDragging{ };
+	bool m_bSpectatorDragging{ };
 
 	void AutoPeekIndicator( );
+	void CrosshairIndicators( );
+	void MinDamageIndicator( );
+	void CustomScope( );
+	void ManualArrows( );
 	void OtherEntities( CBaseEntity* ent );
 	void DrawGrenade( CBaseEntity* ent, int maxAlpha );
 	void DrawWrappingRing( CBaseEntity* entity, float seconds, const char* name, float spawntime, float radius, int maxAlpha );

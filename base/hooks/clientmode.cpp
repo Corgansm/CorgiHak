@@ -4,6 +4,7 @@
 #include "../features/misc/misc.h"
 #include "../features/rage/exploits.h"
 #include "../features/visuals/visuals.h"
+#include "../core/lua/lua_engine.h"
 
 void FASTCALL Hooks::hkOverrideView( IClientModeShared* thisptr, int edx, CViewSetup* pSetup ) {
 	static auto oOverrideView = DTR::OverrideView.GetOriginal<decltype( &hkOverrideView )>( );
@@ -75,6 +76,9 @@ void FASTCALL Hooks::hkOverrideView( IClientModeShared* thisptr, int edx, CViewS
 		pSetup->vecOrigin = ctx.m_pLocal->GetAbsOrigin( ) + ctx.m_pLocal->m_vecViewOffset( );
 
 	oOverrideView( thisptr, edx, pSetup );
+
+	// client.camera_position
+	Lua::OnOverrideView( pSetup->vecOrigin );
 
 	// remove scope edge blur
 	if ( Config::Get<bool>( Vars.RemovalScope ) ) {

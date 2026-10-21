@@ -55,13 +55,11 @@ void** FASTCALL Hooks::hkCHudScopePaint( void* ecx, int edx ) {
 	return nullptr;
 }
 
-bool FASTCALL Hooks::hkShouldInterpolate( CBasePlayer* ecx, const std::uintptr_t edx ) {
+bool FASTCALL Hooks::hkShouldInterpolate( CBasePlayer* ecx, const std::uintptr_t edx )
+{
 	static auto oShouldInterpolate = DTR::ShouldInterpolate.GetOriginal<decltype( &hkShouldInterpolate )>( );
-	if ( ecx == ctx.m_pLocal
-		&& Features::Exploits.m_iRechargeCmd == Interfaces::ClientState->iLastOutgoingCommand ) {
-
+	if ( ecx == ctx.m_pLocal && Features::Exploits.m_iRechargeCmd == Interfaces::ClientState->iLastOutgoingCommand ) 
 		return false;
-	}
 
 	return oShouldInterpolate( ecx, edx );
 }

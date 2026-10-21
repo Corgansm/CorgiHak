@@ -87,9 +87,9 @@ void CMenuItem::ColorPickerFocus( ) {
 
 	constexpr auto size{ Vector2D( 200, 200 ) };
 
-	Render::RoundedBox( Menu::m_pFocusItem.m_vecDrawPos - Vector2D( 1, 1 ), size + Vector2D( 2, 2 ), 4, 4, MAX_ALPHA( OUTLINE_DARK ) );
-	Render::RoundedBox( Menu::m_pFocusItem.m_vecDrawPos, size, 4, 4, MAX_ALPHA( OUTLINE_LIGHT ) );
-	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos + Vector2D( 1, 1 ), size - Vector2D( 2, 2 ), 4, 4, MAX_ALPHA( OUTLINE_DARK ) );
+	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos - Vector2D( 1, 1 ), size + Vector2D( 2, 2 ), 5, 5, MAX_ALPHA( OUTLINE_DARK ) );
+	Render::FilledRoundedBox( Menu::m_pFocusItem.m_vecDrawPos, size, 5, 5, MAX_ALPHA( MENU_POPUP ) );
+	Render::FilledRectangle( Menu::m_pFocusItem.m_vecDrawPos + Vector2D( 5, 0 ), Vector2D( size.x - 10, 2 ), MAX_ALPHA( ACCENT ) );
 
 	const auto hue_draw_pos = Menu::m_pFocusItem.m_vecDrawPos + Vector2D( 170, 10 );
 	for ( int i = 0; i < 150; i++ ) {
@@ -191,7 +191,7 @@ void CMenuItem::ColorPicker( ) {
 	auto& value{ *reinterpret_cast< Color* >( m_pValue ) };
 	auto& args{ *reinterpret_cast< ColorPickerArgs_t* >( m_pArgs ) };
 
-	const auto pos{ Menu::m_vecDrawPos + Vector2D{ ( Menu::m_vecSize.x - BAR_SIZE - MARGIN * 3 ) / 2 - PADDING * 4 - ITEM_HEIGHT * 1.5f, -ITEM_HEIGHT - PADDING } };
+	const auto pos{ Menu::m_vecDrawPos + Vector2D{ Menu::ControlWidth( 2 ) - ITEM_HEIGHT * 1.5f, static_cast< float >( -ITEM_HEIGHT - PADDING ) } };
 	const auto size{ Vector2D{ ITEM_HEIGHT * 1.5f, ITEM_HEIGHT } };
 
 	const auto hovered{ Inputsys::hovered( pos, size ) };
@@ -207,6 +207,8 @@ void CMenuItem::ColorPicker( ) {
 		args.m_flVal = tmp.val;
 	}
 
-	Render::FilledRoundedBox( pos - Vector2D{ 1.f, 1.f }, size + Vector2D{ 2.f, 2.f }, 4, 4, OUTLINE_LIGHT );
-	Render::FilledRoundedBox( pos, size, 4, 4, value );
+	const bool open{ Menu::m_pFocusItem.m_pItem == this };
+
+	Render::FilledRoundedBox( pos - Vector2D{ 1.f, 1.f }, size + Vector2D{ 2.f, 2.f }, 4, 4, open ? ACCENT : hovered ? HOVERED_ELEMENT : OUTLINE_DARK );
+	Render::FilledRoundedBox( pos, size, 4, 3, value.Set<COLOR_A>( 255 ) );
 }

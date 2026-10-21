@@ -39,6 +39,38 @@ struct Shot_t {
 	float m_flCurTime{ };
 	float m_flYaw{ };
 	bool m_bExtrapolated{ };
+	// Resolver evidence belongs to this bullet, including each double-tap bullet.
+	bool m_bResolverTracked{ };
+	bool m_bResolverUnreliable{ };
+	bool m_bResolverReported{ };
+	bool m_bResolverMiss{ };
+	// why a resolver tracked shot missed, set by CResolverBrain::OnShotResult
+	const char* m_szMissReason{ };
+	bool m_bHasImpact{ };
+	int m_iResolverPattern{ };
+	int m_iResolverPhase{ -1 };
+	int m_iResolverContext{ };
+	float m_flResolverSpawnTime{ };
+	std::string m_strResolverKey{ };
+	std::string m_strWeaponName{ };
+
+	/* shot log ( CorgiHak_logs\shots_*.csv ) */
+	std::string m_strTarget{ };
+	int m_iBacktrack{ };        // ticks between the record arriving and the shot
+	int m_iExtrapTicks{ };
+	int m_iExtrapSpread{ };
+	int m_iPredDamage{ };
+	int m_iHitchance{ };
+
+	/* double tap follow-up tracking */
+	bool m_bAfterShift{ };      // fired before the server acknowledged our last tickbase shift
+	bool m_bFollowupNoted{ };
+
+	/* lua aim_fire / aim_hit / aim_miss */
+	int m_iLuaId{ };
+	int m_iLuaTick{ };
+	int m_iLuaHitchance{ };
+	bool m_bLuaReported{ };
 
 	/* data given by server */
 	bool m_bHitPlayer{ };

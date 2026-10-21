@@ -3,19 +3,9 @@
 #include <thread>
 #include <windows.h>
 #include "hooks.h"
-// used: global variables
 #include "../context.h"
 #include "../features/misc/logger.h"
 #include "prop_manager.h"
-/*void FASTCALL newcollisionServer( CBasePlayer* ecx, uint32_t edx, Vector* oldMins, Vector* newMins, Vector* oldMaxs, Vector* newMaxs ) {
-	static auto oOnNewCollisionBounds = DTR::CMCreateMove.GetOriginal<decltype( &newcollisionServer )>( );
-
-	oOnNewCollisionBounds( ecx, edx, oldMins, newMins, oldMaxs, newMaxs );
-
-	Features::Logger.Log( ( "SERVER: " + std::to_string( *reinterpret_cast< float* >( ( reinterpret_cast< std::uintptr_t >( ecx ) + 0x3AF4 ) ) ) + " maxs: " +
-		std::to_string( *reinterpret_cast< float* >( ( reinterpret_cast< std::uintptr_t >( ecx ) + 0x3AF0 ) ) ) ).c_str( ), true );
-	//0x3AF4
-}*/
 
 #pragma region hooks_get
 bool Hooks::Setup( ) {
@@ -77,9 +67,6 @@ bool Hooks::Setup( ) {
 	if ( !DTR::PacketStart.Create( MEM::GetVFunc( pClientStateSwap, 5 ), &Hooks::hkPacketStart ) )
 		return false;	
 
-	if ( !DTR::ProcessTempEntities.Create( MEM::GetVFunc( pClientStateSwap, 36 ), &Hooks::hkProcessTempEntities ) )
-		return false;
-
 	if ( !DTR::WriteUserCmdDeltaToBuffer.Create( MEM::GetVFunc( Interfaces::Client, VTABLE::WRITEUSERCMDDELTATOBUFFER ), &hkWriteUserCmdDeltaToBuffer ) )
 		return false;
 
@@ -100,11 +87,6 @@ bool Hooks::Setup( ) {
 
 	m_bClientSideAnimation = PropManager::Get( ).Hook( m_bClientSideAnimationHook, _( "DT_BaseAnimating" ), _( "m_bClientSideAnimation" ) );
 	m_flSimulationTime = PropManager::Get( ).Hook( m_flSimulationTimeHook, _( "DT_BaseEntity" ), _( "m_flSimulationTime" ) );
-	//m_flAbsYaw = PropManager::Get( ).Hook( m_flAbsYawHook, _( "DT_CSRagdoll" ), _( "m_flAbsYaw" ) );
-	//m_hWeapon = PropManager::Get( ).Hook( m_hWeaponHook, _( "DT_BaseViewModel" ), _( "m_hWeapon" ) );
-	//m_flCycle = PropManager::Get( ).Hook( m_flCycle_Recv, _( "DT_BaseViewModel" ), _( "m_flCycle" ) );
-	//m_nSequence = PropManager::Get( ).Hook( m_flCycle_Recv, _( "DT_BaseViewModel" ), _( "m_nSequence" ) );
-	//m_flAnimTime = PropManager::Get( ).Hook( m_flAnimTime_Recv, _( "DT_BaseViewModel" ), _( "m_flAnimTime" ) );
 
 	D3DDEVICE_CREATION_PARAMETERS creationParameters = { };
 	while ( FAILED( Interfaces::DirectDevice->GetCreationParameters( &creationParameters ) ) )
@@ -186,7 +168,7 @@ bool Hooks::Setup( ) {
 		&Hooks::hkIsBoneAvailable ) )
 		return false;		
 	
-	/*if ( !DTR::ClampBonesInBBox.Create(
+	if ( !DTR::ClampBonesInBBox.Create(
 		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 70 56 57 8B F9 89 7C 24 38 83 BF" ) ) ),
 		&Hooks::hkClampBonesInBBox ) )
 		return false;	
@@ -194,7 +176,7 @@ bool Hooks::Setup( ) {
 	if ( !DTR::OnNewCollisionBounds.Create(
 		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 8B 45 10 F3 0F 10 81" ) ) ),
 		&Hooks::hkOnNewCollisionBounds ) )
-		return false;	*/
+		return false;	
 	
 	if ( !DTR::UpdatePostProcessingEffects.Create(
 		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 51 53 56 57 8B F9 8B 4D 04 E8 ? ? ? ? 8B 35" ) ) ),
@@ -209,50 +191,12 @@ bool Hooks::Setup( ) {
 	if ( !DTR::GetWeaponType.Create(
 		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "8B 01 FF 90 ? ? ? ? 8B 80 ? ? ? ? C3 CC 56" ) ) ),
 		&Hooks::hkGetWeaponType ) )
-		return false;	
-	
-	if ( !DTR::C_BaseViewModel__Interpolate.Create(
-		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 83 E4 F8 83 EC 0C 53 56 8B F1 57 83 BE" ) ) ),
-		&Hooks::hkC_BaseViewModel__Interpolate ) )
 		return false;		
 	
 	if ( !DTR::GetExposureRange.Create(
 		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "55 8B EC 51 80 3D ? ? ? ? ? 0F 57" ) ) ),
 		&Hooks::hkGetExposureRange ) )
 		return false;	
-	
-	/*if ( !DTR::ResetLatched.Create(
-		( byte* )( MEM::FindPattern( CLIENT_DLL, _( "57 8B F9 8B 07 8B 80 ? ? ? ? FF D0 84 C0 75 35 53 8B 5F 30" ) ) ),
-		&Hooks::hkResetLatched ) )
-		return false;
-
-
-	const auto CInterpolatedVar_class_Vector_vtable{ ( void* ) MEM::FindPattern( CLIENT_DLL, _( "C0 8E ? ? ? ? ? 50 70 76 00 A5 ? ? ? ? 80 A6 ? ? ? ? ? 40 40 50 60 60 F0 6C 90 43" ) ) };
-	if ( !CInterpolatedVar_class_Vector_vtable )
-		return false;
-	if ( !DTR::InterpolatedVarArrayBase_Reset.Create( MEM::GetVFunc( CInterpolatedVar_class_Vector_vtable, 0x14 ), &hkInterpolatedVarArrayBase_Reset ) )
-		return false;
-	
-	if ( !DTR::CL_Move.Create(
-		( byte* )( MEM::FindPattern( ENGINE_DLL, _( "55 8B EC 81 EC ? ? ? ? 53 56 8A F9 F3 0F 11 45 ? 8B 4D 04" ) ) ),
-		&Hooks::hkCL_Move ) )
-		return false;	
-
-	if ( !DTR::CL_ReadPackets.Create(
-		( byte* )( MEM::FindPattern( ENGINE_DLL, _( "53 8A D9 8B 0D ? ? ? ? 56 57 8B B9" ) ) ),
-		&Hooks::hkCL_ReadPackets ) )
-		return false;
-
-	if ( !DTR::_Host_RunFrame_Client.Create(
-		( byte* )( MEM::FindPattern( ENGINE_DLL, _( "55 8B EC 83 EC 08 53 56 8A D9 FF 15" ) ) ),
-		&Hooks::hk_Host_RunFrame_Client ) )
-		return false;	
-
-	if ( !DTR::_Host_RunFrame_Input.Create(
-		( byte* )( MEM::FindPattern( ENGINE_DLL, _( "55 8B EC 83 EC 10 53 8A D9 F3 0F 11 45" ) ) ),
-		&Hooks::hk_Host_RunFrame_Input ) )
-		return false;*/
-		
 
 
 #ifdef SERVER_DBGING
@@ -268,11 +212,6 @@ bool Hooks::Setup( ) {
 void Hooks::Restore( ) {
 	PropManager::Get( ).Hook( m_bClientSideAnimation, _( "DT_BaseAnimating" ), _( "m_bClientSideAnimation" ) );
 	PropManager::Get( ).Hook( m_flSimulationTime, _( "DT_BaseEntity" ), _( "m_flSimulationTime" ) );
-	//PropManager::Get( ).Hook( m_flAbsYaw, _( "DT_CSRagdoll" ), _( "m_flAbsYaw" ) );
-	//PropManager::Get( ).Hook( m_hWeapon, _( "DT_BaseViewModel" ), _( "m_hWeapon" ) );
-	//PropManager::Get( ).Hook( m_flCycle, _( "DT_BaseViewModel" ), _( "m_flCycle" ) );
-	//PropManager::Get( ).Hook( m_nSequence, _( "DT_BaseViewModel" ), _( "m_nSequence" ) );
-	//PropManager::Get( ).Hook( m_flAnimTime, _( "DT_BaseViewModel" ), _( "m_flAnimTime" ) );
 
 	MH_DisableHook( MH_ALL_HOOKS );
 	MH_RemoveHook( MH_ALL_HOOKS );

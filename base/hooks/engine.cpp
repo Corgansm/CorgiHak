@@ -14,10 +14,11 @@ float FASTCALL Hooks::hkGetScreenAspectRatio( void* ecx, void* edx, int32_t iWid
 }
 
 
-bool FASTCALL Hooks::hkIsPaused( void* ecx, void* edx ) {
+bool FASTCALL Hooks::hkIsPaused( void* ecx, void* edx ) 
+{
 	static auto oIsPaused{ DTR::IsPaused.GetOriginal<decltype( &hkIsPaused )>( ) };
 	if ( reinterpret_cast< uintptr_t >( _ReturnAddress( ) ) == Displacement::Sigs.ReturnToInterpolateServerEntitiesExtrap 
-		|| ( reinterpret_cast< uintptr_t >( _ReturnAddress( ) ) == Displacement::Sigs.ReturnToInterpolateServerEntities
+		|| ( reinterpret_cast< uintptr_t >( _ReturnAddress( ) ) == Displacement::Sigs.ReturnToInterpolateServerEntities 
 			&& Features::Exploits.m_iRechargeCmd == Interfaces::ClientState->iLastOutgoingCommand ) )
 		return true;
 

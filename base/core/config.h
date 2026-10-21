@@ -63,6 +63,10 @@ namespace Config // @credits: ducarii
 	void Remove(const std::size_t nIndex);
 	/* loop through directory content and push config filenames to vector */
 	void Refresh();
+	/* load the config that was loaded / saved last ( Config\last.txt ), returns its name or "" */
+	std::string LoadLast();
+	/* name of the config loaded / saved last this session ( "" = defaults ) */
+	inline std::string strActive{ };
 	inline bool m_bDueRefresh{ };
 
 	// Get

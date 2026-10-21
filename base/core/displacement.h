@@ -93,8 +93,6 @@ struct signatures {
 
 	uintptr_t ReturnToClampBonesInBBox;
 	uintptr_t ClampBonesInBBox;
-	uintptr_t C_BaseAnimating__BuildTransformations;
-	uintptr_t StandardBlendingRules;
 
 	uintptr_t CL_FireEvents;
 	uintptr_t NET_ProcessSocket;
@@ -259,6 +257,7 @@ struct netvars {
 	int m_flThirdpersonRecoil;
 	int m_bIsWalking;
 	int m_bIsPlayerGhost;
+	int m_flLastExoJumpTime;
 	int deadflag;
 	int m_flDuckSpeed;
 	int m_flMaxSpeed;
@@ -282,7 +281,7 @@ struct netvars {
 	int m_hWeapon;
 	int m_nAnimationParity;
 	int m_nModelIndex;
-	int m_vecBaseVelocity;
+	int m_vecAbsVelocity;
 	int m_hCombatWeaponParent;
 	int m_nPrecipType;
 };

@@ -8,7 +8,7 @@ void CBulletTracers::Draw( ) {
 		std::remove_if(
 			m_vecTracers.begin( ), m_vecTracers.end( ),
 			[ & ]( const TracerData_t& tracer ) -> bool {
-				return Interfaces::Globals->flRealTime >= tracer.m_flStartTime + 5.f;
+				return Interfaces::Globals->flRealTime >= tracer.m_flStartTime + 2.5f;
 			}
 		),
 		m_vecTracers.end( )
@@ -25,9 +25,30 @@ void CBulletTracers::Draw( ) {
 	}
 
 	for ( const auto& tracer : m_vecTracers ) {
-		const auto alpha{ std::min( tracer.m_flStartTime + 5.f - Interfaces::Globals->flRealTime, 1.f ) };
+		const float age{ Interfaces::Globals->flRealTime - tracer.m_flStartTime };
+		// hold, then ease out ( shared animation curves )
+		const auto alpha{ 1.f - Anim::EaseIn( std::clamp( ( age - 0.6f ) / 1.9f, 0.f, 1.f ) ) };
 
 		const auto& col{ tracer.m_pShooter == ctx.m_pLocal ? Config::Get<Color>( Vars.VisLocalBulletTracersCol ) : Config::Get<Color>( Vars.VisOtherBulletTracersCol ) };
+
+		// impact spark: a few short streaks that fly out and fade
+		const auto spark{ [ & ]( ) {
+			if ( age >= 0.35f )
+				return;
+
+			Vector2D hit{ };
+			if ( !Math::WorldToScreen( tracer.m_vecEnd, hit ) || hit.IsZero( ) )
+				return;
+
+			const float t{ age / 0.35f };
+			const float reach{ 3.f + 12.f * Anim::EaseOut( t ) };
+			const auto sparkCol{ Color( col ).Lerp( Color( 255, 255, 255, static_cast< int >( col.Get<COLOR_A>( ) ) ), 0.5f ).Set<COLOR_A>( 255.f * ( 1.f - t ) ) };
+			for ( int i{ }; i < 6; ++i ) {
+				const float rad{ ( 60.f * i + 15.f ) * MenuDraw::DEG_TO_RAD };
+				const float dx{ std::cos( rad ) }, dy{ std::sin( rad ) };
+				Render::Line( Vector2D( hit.x + dx * reach, hit.y + dy * reach ), Vector2D( hit.x + dx * ( reach + 4.f ), hit.y + dy * ( reach + 4.f ) ), sparkCol );
+			}
+		} };
 
 		switch ( Config::Get<int>( Vars.VisBulletTracersType ) ) {
 		case 0: {
@@ -39,7 +60,10 @@ void CBulletTracers::Draw( ) {
 			if ( !Math::WorldToScreen( tracer.m_vecEnd, end ) )
 				continue;
 
-			Render::Line( start, end, col.Set<COLOR_A>( col.Get<COLOR_A>( ) * alpha ) );
+			// soft glow under a bright core
+			MenuDraw::ThickLine( start, end, col.Set<COLOR_A>( col.Get<COLOR_A>( ) * alpha * 0.3f ), 3.f );
+			Render::Line( start, end, Color( col ).Lerp( Color( 255, 255, 255, static_cast< int >( col.Get<COLOR_A>( ) ) ), 0.25f ).Set<COLOR_A>( col.Get<COLOR_A>( ) * alpha ) );
+			spark( );
 
 			break;
 		}
@@ -72,6 +96,8 @@ void CBulletTracers::Draw( ) {
 			const auto beam{ Interfaces::ViewRenderBeams->CreateBeamPoints( info ) };
 			if ( beam )
 				Interfaces::ViewRenderBeams->DrawBeam( beam );
+
+			spark( );
 
 			break;
 		}

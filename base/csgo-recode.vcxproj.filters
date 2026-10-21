@@ -18,6 +18,12 @@
     <ClInclude Include="core\hooks.h" />
     <ClInclude Include="core\interfaces.h" />
     <ClInclude Include="core\prop_manager.h" />
+    <ClInclude Include="core\lua\lua_engine.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\lua\lua_embedded.h">
+      <Filter>core</Filter>
+    </ClInclude>
     <ClInclude Include="havoc.h" />
     <ClInclude Include="utils\detourhook.h" />
     <ClInclude Include="utils\math.h" />
@@ -126,6 +132,7 @@
     <ClInclude Include="dependencies\minhook\minhook.h" />
     <ClInclude Include="dependencies\minhook\trampoline.h" />
     <ClInclude Include="utils\render.h" />
+    <ClInclude Include="utils\anim.h" />
     <ClInclude Include="features\visuals\visuals.h" />
     <ClInclude Include="sdk\player.h" />
     <ClInclude Include="context.h" />
@@ -138,6 +145,7 @@
     <ClInclude Include="features\rage\antiaim.h" />
     <ClInclude Include="features\animations\animation.h" />
     <ClInclude Include="features\rage\ragebot.h" />
+    <ClInclude Include="features\rage\lc_prediction.h" />
     <ClInclude Include="features\misc\logger.h" />
     <ClInclude Include="features\rage\exploits.h" />
     <ClInclude Include="sdk\interfaces\igameresources.h" />
@@ -160,6 +168,10 @@
     <ClInclude Include="features\misc\skinchanger\kitparser.h" />
     <ClInclude Include="sdk\datatypes\utlmap.h" />
     <ClInclude Include="features\misc\skinchanger\skinchanger.h" />
+    <ClInclude Include="features\rage\resolver_rules.h" />
+    <ClInclude Include="features\rage\resolver_pattern.h" />
+    <ClInclude Include="features\rage\resolver_evidence.h" />
+    <ClInclude Include="features\rage\net_simtime.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="sdk\convar.cpp" />
@@ -169,6 +181,9 @@
     <ClCompile Include="core\hooks.cpp" />
     <ClCompile Include="core\interfaces.cpp" />
     <ClCompile Include="core\prop_manager.cpp" />
+    <ClCompile Include="core\lua\lua_engine.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="utils\math.cpp" />
     <ClCompile Include="utils\memory.cpp" />
@@ -211,10 +226,12 @@
     <ClCompile Include="features\animations\local_animations.cpp" />
     <ClCompile Include="features\animations\animations.cpp" />
     <ClCompile Include="features\rage\ragebot.cpp" />
+    <ClCompile Include="features\rage\lc_prediction.cpp" />
     <ClCompile Include="features\misc\logger.cpp" />
     <ClCompile Include="features\rage\exploits.cpp" />
     <ClCompile Include="features\visuals\grenade_prediction.cpp" />
     <ClCompile Include="features\visuals\bullet_tracers.cpp" />
+    <ClCompile Include="features\visuals\kill_effects.cpp" />
     <ClCompile Include="hooks\enginetrace.cpp" />
     <ClCompile Include="hooks\debugoverlay.cpp" />
     <ClCompile Include="utils\threading\impl\thread_pool.cpp" />
@@ -247,6 +264,6 @@
     <None Include="features\animations\record_utils.inl" />
     <None Include="utils\math.inl" />
     <None Include="utils\threading\impl\thread_pool.inl" />
-    <None Include="testing_shit.havoc" />
+    <None Include="packages.config" />
   </ItemGroup>
 </Project>
